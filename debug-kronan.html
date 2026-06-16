@@ -95,7 +95,7 @@ async function runDebug() {
   output.textContent = "Sæki gögn frá Krónunni...";
 
   try {
-    const response = await fetch("/api/kronan/debug");
+    const response = await fetch("/api/kronan-debug");
     const body = await response.json();
     if (!response.ok) {
       output.innerHTML = `

@@ -956,7 +956,7 @@ async function handleKronanApi(req, res, url) {
   if (!requireToken(res)) return;
 
   try {
-    if (req.method === "GET" && url.pathname === "/api/kronan/debug") {
+    if (req.method === "GET" && (url.pathname === "/api/kronan/debug" || url.pathname === "/api/kronan-debug")) {
       return handleKronanDebug(req, res);
     }
 
@@ -971,7 +971,7 @@ async function handleKronanApi(req, res, url) {
       return sendJson(res, 200, payload);
     }
 
-    if (req.method === "POST" && url.pathname === "/api/kronan/match-products") {
+    if (req.method === "POST" && (url.pathname === "/api/kronan/match-products" || url.pathname === "/api/kronan-match-products")) {
       const body = await readRequestBody(req);
       const items = Array.isArray(body.items) ? body.items : [];
       const goals = Array.isArray(body.goals) ? body.goals : [];

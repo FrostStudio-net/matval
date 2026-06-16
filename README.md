@@ -10,7 +10,8 @@ The Krónan access token must only live on the backend. Never put `KRONAN_API_TO
 - `app.js` - frontend app state, quiz, meal plan UI, saved plans, and Krónan client calls
 - `data.js` - recipes, ingredients, local fallback prices, and recipe metadata
 - `server.js` - local Node server, static file serving, and Krónan API proxy/matching logic
-- `api/kronan/[...path].js` - Vercel serverless API entrypoint that reuses `server.js`
+- `api/kronan-match-products.js` - Vercel serverless product matching endpoint
+- `api/kronan-debug.js` - Vercel serverless debug endpoint
 - `kronan-product-mapping.js` - ingredient-to-product matching rules
 - `public/` - static image/logo assets
 - `tests/` - Node regression tests for Krónan matching
@@ -54,7 +55,7 @@ Open:
 http://localhost:8000
 ```
 
-The frontend calls relative endpoints such as `/api/kronan/match-products`. The backend adds:
+The frontend calls relative endpoints such as `/api/kronan-match-products`. The backend adds:
 
 ```text
 Authorization: AccessToken <token>
@@ -73,13 +74,12 @@ Do not add `HOST` or `PORT` in Vercel unless you have a specific reason. Those a
 
 API routes available on Vercel:
 
-- `/api/kronan/match-products`
-- `/api/kronan/search`
-- `/api/kronan/product/:sku`
-- `/api/kronan/categories`
-- `/api/kronan/category/:slug/products`
+- `/api/kronan-match-products`
+- `/api/kronan-debug`
 
-The debug endpoint `/api/kronan/debug` is disabled when `NODE_ENV=production`.
+The local development server still supports the older `/api/kronan/*` proxy routes. Vercel uses the explicit serverless files above to avoid catch-all routing issues.
+
+The debug endpoint is disabled when `NODE_ENV=production`.
 
 ## Checks
 

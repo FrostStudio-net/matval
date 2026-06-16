@@ -1219,15 +1219,15 @@ async function hydrateKronanPrices(plan) {
     console.log("[TRACE]", traceId, "rawMealPlan", plan);
     console.log("[TRACE]", traceId, "rawShoppingListBeforeMatching", plan.shoppingList);
     console.log("[Main app Krónan] selected store:", state.store);
-    console.log("[Main app Krónan] ingredients sent to /api/kronan/match-products:", ingredients);
+    console.log("[Main app Krónan] ingredients sent to /api/kronan-match-products:", ingredients);
     const payload = {
       traceId,
       goals: state.goals,
       items: ingredients,
     };
-    console.log("[TRACE]", traceId, "calling /api/kronan/match-products", payload);
+    console.log("[TRACE]", traceId, "calling /api/kronan-match-products", payload);
 
-    const response = await fetch("/api/kronan/match-products", {
+    const response = await fetch("/api/kronan-match-products", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
@@ -1236,7 +1236,7 @@ async function hydrateKronanPrices(plan) {
     if (!response.ok) throw new Error("Kronan match-products request failed");
 
     const data = await response.json();
-    console.log("[Main app Krónan] exact /api/kronan/match-products response:", data);
+    console.log("[Main app Krónan] exact /api/kronan-match-products response:", data);
     console.log("[TRACE]", traceId, "match-products response", data);
     if (requestId !== pricingRequest.id) return;
 

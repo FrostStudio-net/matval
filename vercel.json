@@ -1,10 +1,6 @@
 {
   "rewrites": [
     {
-      "source": "/api/kronan/:path*",
-      "destination": "/api/kronan/:path*"
-    },
-    {
       "source": "/(.*)",
       "destination": "/index.html"
     }
