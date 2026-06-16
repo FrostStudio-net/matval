@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="is">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Krónan API debug</title>
+<style>
+  body{
+    margin:0;
+    padding:32px;
+    background:#f6f1e6;
+    color:#1f2a24;
+    font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  }
+  main{ max-width:1100px; margin:0 auto; }
+  h1{ margin:0 0 8px; }
+  button{
+    border:1px solid #2e4534;
+    background:#3f5d45;
+    color:#fffdf7;
+    padding:10px 16px;
+    border-radius:6px;
+    font-weight:700;
+    cursor:pointer;
+  }
+  .summary{ color:#7a7367; margin-bottom:20px; }
+  .card{
+    background:#fffdf7;
+    border:1px solid #d8cfbe;
+    border-radius:8px;
+    padding:18px;
+    margin:16px 0;
+  }
+  .status{ font-weight:700; }
+  .ok{ color:#2e4534; }
+  .fail{ color:#b23822; }
+  code, pre{
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  }
+  pre{
+    white-space:pre-wrap;
+    overflow:auto;
+    background:#1f2a24;
+    color:#fffdf7;
+    padding:14px;
+    border-radius:6px;
+    font-size:13px;
+  }
+  dl{
+    display:grid;
+    grid-template-columns:150px 1fr;
+    gap:8px 12px;
+    margin:12px 0;
+  }
+  dt{ color:#7a7367; }
+  dd{ margin:0; overflow-wrap:anywhere; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Krónan API debug</h1>
+  <p class="summary">Raw verification only. No meal plan logic, no product matching logic.</p>
+  <button id="runBtn">Keyra Krónan API próf</button>
+  <div id="output" class="summary" style="margin-top:18px;">Bíð eftir keyrslu.</div>
+</main>
+
+<script>
+const output = document.getElementById("output");
+const runBtn = document.getElementById("runBtn");
+
+function pretty(value) {
+  return JSON.stringify(value, null, 2);
+}
+
+function renderResult(result) {
+  return `
+    <section class="card">
+      <h2>${result.label}</h2>
+      <dl>
+        <dt>Request URL</dt><dd><code>${result.requestUrl}</code></dd>
+        <dt>Method</dt><dd><code>${result.method}</code></dd>
+        <dt>Status</dt><dd class="status ${result.ok ? "ok" : "fail"}">${result.status ?? "network error"} ${result.ok ? "OK" : "FAILED"}</dd>
+        <dt>Error</dt><dd>${result.error ? `<code>${result.error}</code>` : "None"}</dd>
+      </dl>
+      <h3>Response headers</h3>
+      <pre>${pretty(result.responseHeaders)}</pre>
+      <h3>Response body JSON</h3>
+      <pre>${pretty(result.responseBody)}</pre>
+    </section>
+  `;
+}
+
+async function runDebug() {
+  runBtn.disabled = true;
+  output.textContent = "Sæki gögn frá Krónunni...";
+
+  try {
+    const response = await fetch("/api/kronan/debug");
+    const body = await response.json();
+    if (!response.ok) {
+      output.innerHTML = `
+        <section class="card">
+          <h2>Debug endpoint failed</h2>
+          <dl>
+            <dt>Status</dt><dd class="status fail">${response.status}</dd>
+            <dt>Error</dt><dd><code>${body.error || "Unknown error"}</code></dd>
+          </dl>
+          <pre>${pretty(body)}</pre>
+        </section>
+      `;
+      return;
+    }
+
+    output.innerHTML = `
+      <p class="summary">Base URL: <code>${body.baseUrl}</code> · Generated: <code>${body.generatedAt}</code></p>
+      ${body.results.map(renderResult).join("")}
+    `;
+  } catch (error) {
+    output.innerHTML = `
+      <section class="card">
+        <h2>Browser request failed</h2>
+        <pre>${error.stack || error.message || String(error)}</pre>
+      </section>
+    `;
+  } finally {
+    runBtn.disabled = false;
+  }
+}
+
+runBtn.addEventListener("click", runDebug);
+runDebug();
+</script>
+</body>
+</html>
