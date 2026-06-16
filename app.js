@@ -1,5 +1,6 @@
 // Matval — app logic
 // State
+import { RECIPES } from './data.js';
 
 const STORES = [
   { id: "kronan", name: "Krónan", available: true, note: "Eina verslunin í boði núna", logo: "public/KRO_Logo_Emblem_2023.png" },
