@@ -122,6 +122,7 @@ const state = {
 const fmt = (n) => Math.round(n).toLocaleString("is-IS") + " kr";
 const pricingRequest = { id: 0 };
 const PLAN_ERROR_MESSAGE = "Ekki tókst að búa til plan með þessum skilyrðum. Prófaðu hærra budget eða færri takmarkanir.";
+const IS_BROWSER = typeof window !== "undefined" && typeof document !== "undefined";
 
 function escapeHtml(value) {
   return String(value ?? "")
@@ -137,17 +138,19 @@ function createTraceId() {
 }
 
 function clearInteractionState() {
+  if (!IS_BROWSER) return;
   if (document.activeElement instanceof HTMLElement) {
     document.activeElement.blur();
   }
 }
 
 function scrollToPageTop() {
+  if (!IS_BROWSER) return;
   window.scrollTo({ top: 0, left: 0, behavior: "auto" });
 }
 
-if ("scrollRestoration" in history) {
-  history.scrollRestoration = "manual";
+if (typeof window !== "undefined" && window.history && "scrollRestoration" in window.history) {
+  window.history.scrollRestoration = "manual";
 }
 
 function navigateToStep(step) {
@@ -1276,16 +1279,18 @@ async function hydrateKronanPrices(plan) {
 
 // ---------- Rendering ----------
 
-const app = document.getElementById("app");
+const app = IS_BROWSER ? document.getElementById("app") : null;
 
-document.addEventListener("click", (event) => {
-  const target = event.target instanceof Element
-    ? event.target.closest("button, .option, .meal-action-btn, .meal-name, .header-link, .logo")
-    : null;
-  if (target instanceof HTMLElement) {
-    window.setTimeout(clearInteractionState, 0);
-  }
-});
+if (IS_BROWSER) {
+  document.addEventListener("click", (event) => {
+    const target = event.target instanceof Element
+      ? event.target.closest("button, .option, .meal-action-btn, .meal-name, .header-link, .logo")
+      : null;
+    if (target instanceof HTMLElement) {
+      window.setTimeout(clearInteractionState, 0);
+    }
+  });
+}
 
 function render() {
   clearInteractionState();
@@ -2159,6 +2164,8 @@ function runWeeklyPlanningAssertions() {
 runDietaryAssertions();
 runAvoidFoodAssertions();
 runWeeklyPlanningAssertions();
-state.step = -1;
-render();
-scrollToPageTop();
+if (IS_BROWSER) {
+  state.step = -1;
+  render();
+  scrollToPageTop();
+}
