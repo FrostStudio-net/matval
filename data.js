@@ -124,6 +124,8 @@ const RECIPES = [
       "Hrærðu saman og láttu standa í kæli yfir nótt (eða í minnst 1 klst).",
       "Borðað kalt um morguninn, hrærðu aftur fyrir mat.",
     ],
+    imageUrl: "/public/recipe-images/overnight_oats_blueberries.png",
+    imageAlt: "Overnight oats með bláberjum"
   },
   {
     id: "eggs_toast",
@@ -145,6 +147,8 @@ const RECIPES = [
       "Smyrðu smjöri á brauðið og settu eggin ofan á.",
       "Saltaðu og piprað eftir smekk.",
     ],
+    imageUrl: "/public/recipe-images/eggs_toast.png",
+    imageAlt: "Egg og ristað brauð"
   },
   {
     id: "yogurt_banana_bowl",
