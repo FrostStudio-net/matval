@@ -1883,6 +1883,7 @@ function renderResults() {
           <button class="btn ghost" id="myPlansBtn">Mín plön</button>
           <button class="btn" id="savePlanBtn">Vista plan</button>
         </div>
+        <button class="btn secondary result-regen" id="regenBtn">Endurnýja plan</button>
 
         <div class="results-summary">
           <div>
