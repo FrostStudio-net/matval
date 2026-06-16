@@ -1,9 +1,12 @@
 {
-  "version": 2,
   "rewrites": [
     {
-      "source": "/debug/kronan",
-      "destination": "/debug-kronan.html"
+      "source": "/api/kronan/:path*",
+      "destination": "/api/kronan/:path*"
+    },
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
     }
   ]
 }

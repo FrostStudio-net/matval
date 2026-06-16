@@ -1301,6 +1301,13 @@ RECIPES.forEach((recipe) => {
   recipe.isVegetarianMeal = recipe.isVegetarianMeal && sourceRecipe.isVegetarianMeal;
 });
 
+if (typeof window !== "undefined") {
+  window.TAGS = TAGS;
+  window.PRODUCTS = PRODUCTS;
+  window.INGREDIENT_META = INGREDIENT_META;
+  window.RECIPES = RECIPES;
+}
+
 if (typeof module !== "undefined") {
   module.exports = { TAGS, PRODUCTS, INGREDIENT_META, RECIPES };
 }

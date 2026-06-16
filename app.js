@@ -2161,10 +2161,10 @@ function runWeeklyPlanningAssertions() {
   state.foodDislikes = previousDislikes;
 }
 
-runDietaryAssertions();
-runAvoidFoodAssertions();
-runWeeklyPlanningAssertions();
 if (IS_BROWSER) {
+  runDietaryAssertions();
+  runAvoidFoodAssertions();
+  runWeeklyPlanningAssertions();
   state.step = -1;
   render();
   scrollToPageTop();
