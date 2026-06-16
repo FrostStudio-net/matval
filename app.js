@@ -1,6 +1,11 @@
 // Matval — app logic
 // State
-import { RECIPES } from './data.js';
+const APP_GLOBAL = typeof window !== "undefined" ? window : globalThis;
+const APP_RECIPES = Array.isArray(APP_GLOBAL.RECIPES) ? APP_GLOBAL.RECIPES : [];
+const APP_PRODUCTS = APP_GLOBAL.PRODUCTS || {};
+const APP_TAGS = APP_GLOBAL.TAGS || {};
+const APP_INGREDIENT_META = APP_GLOBAL.INGREDIENT_META || {};
+const APP_KRONAN_PRODUCT_MAPPING = APP_GLOBAL.KRONAN_PRODUCT_MAPPING || {};
 
 const STORES = [
   { id: "kronan", name: "Krónan", available: true, note: "Eina verslunin í boði núna", logo: "public/KRO_Logo_Emblem_2023.png" },
@@ -248,7 +253,7 @@ function foodTextMatchesDislikes(text, dislikes = state.foodDislikes) {
 }
 
 function ingredientMatchesDislikes(key, dislikes = state.foodDislikes) {
-  const product = PRODUCTS[key];
+  const product = APP_PRODUCTS[key];
   const productText = normalizeFoodText(`${key} ${product ? product.name : ""} ${product ? product.unit : ""}`);
   return selectedDislikeOptions(dislikes).some((option) => {
     if ((option.ingredientKeys || []).includes(key)) return true;
@@ -292,7 +297,7 @@ function recipePrice(recipe, servingsNeeded) {
   const multiplier = servingsNeeded / recipe.servingsBase;
   let total = 0;
   recipe.ingredients.forEach((ing) => {
-    const product = PRODUCTS[ing.key];
+    const product = APP_PRODUCTS[ing.key];
     total += product.price * ing.amount * multiplier;
   });
   return total;
@@ -663,7 +668,7 @@ function estimateShoppingList(planDays, people, pantry) {
   const shoppingList = [];
   let totalPrice = 0;
   Object.entries(aggregate).forEach(([key, amount]) => {
-    const product = PRODUCTS[key];
+    const product = APP_PRODUCTS[key];
     if (!product || pantry.includes(key)) return;
     if (ingredientMatchesDislikes(key)) return;
     const price = product.price * amount;
@@ -716,7 +721,7 @@ function countRecipesInPlan(plan) {
 
 function replacementPoolForSlot(slot, plan, dayIndex) {
   const previousDinner = dayIndex > 0 ? plan.days[dayIndex - 1].kvöldmatur.recipe : null;
-  return RECIPES.filter((recipe) => {
+  return APP_RECIPES.filter((recipe) => {
     if (recipe.usesLeftovers) {
       return slot === "hádegismatur" && previousDinner && recipe.usesLeftovers === previousDinner.id;
     }
@@ -834,7 +839,7 @@ function replaceMeal(dayIndex, slot) {
 }
 
 function ingredientAllowedForGoals(key, goals) {
-  const meta = INGREDIENT_META[key];
+  const meta = APP_INGREDIENT_META[key];
   if (!meta) return false;
 
   if (selectedGoal(goals, "vegan") && !meta.isVegan) return false;
@@ -855,7 +860,7 @@ function recipeAllowedForGoals(recipe, goals) {
 function leftoverRecipeAllowedForGoals(recipe, goals) {
   if (!recipeAllowedForGoals(recipe, goals)) return false;
   if (!recipe.usesLeftovers) return true;
-  const sourceRecipe = RECIPES.find((candidate) => candidate.id === recipe.usesLeftovers);
+  const sourceRecipe = APP_RECIPES.find((candidate) => candidate.id === recipe.usesLeftovers);
   return sourceRecipe ? recipeAllowedForGoals(sourceRecipe, goals) : false;
 }
 
@@ -864,15 +869,15 @@ function linkedLeftoverRecipe(sourceRecipe, leftoverRecipes) {
 }
 
 function plannerStatsForRecipes() {
-  const selectableRecipes = RECIPES.filter((recipe) => !recipe.usesLeftovers);
+  const selectableRecipes = APP_RECIPES.filter((recipe) => !recipe.usesLeftovers);
   const uniqueProteins = new Set(selectableRecipes.map((recipe) => recipe.primaryProtein).filter(Boolean));
   const uniqueCarbs = new Set(selectableRecipes.map((recipe) => recipe.primaryCarb).filter(Boolean));
   return {
-    recipeCount: RECIPES.length,
-    breakfastRecipeCount: RECIPES.filter((recipe) => recipe.mealRole === "breakfast").length,
-    lunchRecipeCount: RECIPES.filter((recipe) => recipe.mealRole === "lunch").length,
-    dinnerRecipeCount: RECIPES.filter((recipe) => recipe.mealRole === "dinner").length,
-    flexibleRecipeCount: RECIPES.filter((recipe) => recipe.mealRole === "flexible").length,
+    recipeCount: APP_RECIPES.length,
+    breakfastRecipeCount: APP_RECIPES.filter((recipe) => recipe.mealRole === "breakfast").length,
+    lunchRecipeCount: APP_RECIPES.filter((recipe) => recipe.mealRole === "lunch").length,
+    dinnerRecipeCount: APP_RECIPES.filter((recipe) => recipe.mealRole === "dinner").length,
+    flexibleRecipeCount: APP_RECIPES.filter((recipe) => recipe.mealRole === "flexible").length,
     uniqueProteinsUsed: [...uniqueProteins],
     uniqueCarbsUsed: [...uniqueCarbs],
   };
@@ -946,7 +951,7 @@ function hydrateSavedPlan(savedPlan) {
     const hydratedDay = {};
     ["morgunmatur", "hádegismatur", "kvöldmatur"].forEach((slot) => {
       const meal = day[slot];
-      const recipe = meal && RECIPES.find((candidate) => candidate.id === meal.recipeId);
+      const recipe = meal && APP_RECIPES.find((candidate) => candidate.id === meal.recipeId);
       if (recipe) {
         hydratedDay[slot] = {
           recipe,
@@ -1053,7 +1058,7 @@ function savedPlanStats(savedPlans) {
   const proteinCounts = {};
   savedPlans.forEach((plan) => {
     recipeIdsInPlanSnapshot(plan).forEach((recipeId) => {
-      const recipe = RECIPES.find((candidate) => candidate.id === recipeId);
+      const recipe = APP_RECIPES.find((candidate) => candidate.id === recipeId);
       const protein = recipe && recipe.primaryProtein;
       if (protein) proteinCounts[protein] = (proteinCounts[protein] || 0) + 1;
     });
@@ -1062,7 +1067,7 @@ function savedPlanStats(savedPlans) {
   return {
     plansSaved: savedPlans.length,
     averageWeeklyCost: savedPlans.length ? totalCost / savedPlans.length : 0,
-    mostUsedProtein: mostUsedProtein ? PRODUCTS[mostUsedProtein[0]]?.name || mostUsedProtein[0] : "Engin gögn",
+    mostUsedProtein: mostUsedProtein ? APP_PRODUCTS[mostUsedProtein[0]]?.name || mostUsedProtein[0] : "Engin gögn",
   };
 }
 
@@ -1114,8 +1119,8 @@ function generatePlan(options = {}) {
   if (!options.silentStats) {
     console.log("[Planner stats]", plannerStatsForRecipes());
   }
-  const eligibleRecipes = RECIPES.filter((recipe) => !recipe.usesLeftovers && recipeAllowedForGoals(recipe, goals));
-  const leftoverRecipes = RECIPES.filter((recipe) => recipe.usesLeftovers && leftoverRecipeAllowedForGoals(recipe, goals));
+  const eligibleRecipes = APP_RECIPES.filter((recipe) => !recipe.usesLeftovers && recipeAllowedForGoals(recipe, goals));
+  const leftoverRecipes = APP_RECIPES.filter((recipe) => recipe.usesLeftovers && leftoverRecipeAllowedForGoals(recipe, goals));
   const structure = buildWeeklyStructure(goals, days);
   const pools = {
     morgunmatur: sortRecipesForSlot(candidateRecipesForSlot(eligibleRecipes, "morgunmatur"), "morgunmatur", goals, pantry, people),
@@ -1280,9 +1285,22 @@ async function hydrateKronanPrices(plan) {
 
 // ---------- Rendering ----------
 
-const app = IS_BROWSER ? document.getElementById("app") : null;
+let app = null;
 
-if (IS_BROWSER) {
+function initApp() {
+  if (!IS_BROWSER) return;
+
+  app = document.getElementById("app");
+  if (!app) {
+    throw new Error("Missing #app root element");
+  }
+
+  console.log("[MATVAL STARTUP]", {
+    recipes: window.RECIPES?.length,
+    mapping: Boolean(window.KRONAN_PRODUCT_MAPPING),
+    appLoaded: true,
+  });
+
   document.addEventListener("click", (event) => {
     const target = event.target instanceof Element
       ? event.target.closest("button, .option, .meal-action-btn, .meal-name, .header-link, .logo")
@@ -1291,6 +1309,22 @@ if (IS_BROWSER) {
       window.setTimeout(clearInteractionState, 0);
     }
   });
+
+  runDietaryAssertions();
+  runAvoidFoodAssertions();
+  runWeeklyPlanningAssertions();
+  state.step = -1;
+  render();
+  scrollToPageTop();
+}
+
+function showStartupError(error) {
+  console.error("[MATVAL STARTUP FAILED]", error);
+  if (!IS_BROWSER) return;
+  document.body.insertAdjacentHTML(
+    "beforeend",
+    "<main class='wrap'><h1>Villa kom upp</h1><p>Ekki tókst að hlaða Matval. Prófaðu að endurhlaða síðuna.</p></main>"
+  );
 }
 
 function render() {
@@ -1544,13 +1578,13 @@ function renderPantryStep() {
     <p style="color:var(--muted); margin-bottom:14px;">Hvað ert þú að eiga til heima? Appið reynir að nota það og sleppir því úr innkaupalistanum.</p>
     <div class="pantry-tags" id="pantryTags">
       ${state.pantry.map((key) => `
-        <span class="pantry-tag" data-key="${key}">${PRODUCTS[key].name} <button data-remove="${key}">×</button></span>
+        <span class="pantry-tag" data-key="${key}">${APP_PRODUCTS[key].name} <button data-remove="${key}">×</button></span>
       `).join("")}
     </div>
     <div style="margin-top:14px;">
       <div class="pantry-suggestions">
         ${PANTRY_SUGGESTIONS.filter((k) => !state.pantry.includes(k)).map((k) => `
-          <div class="option" data-add="${k}">+ ${PRODUCTS[k].name}</div>
+          <div class="option" data-add="${k}">+ ${APP_PRODUCTS[k].name}</div>
         `).join("")}
       </div>
     </div>
@@ -1559,7 +1593,7 @@ function renderPantryStep() {
 
   function refreshTags() {
     document.getElementById("pantryTags").innerHTML = state.pantry.map((key) => `
-      <span class="pantry-tag" data-key="${key}">${PRODUCTS[key].name} <button data-remove="${key}">×</button></span>
+      <span class="pantry-tag" data-key="${key}">${APP_PRODUCTS[key].name} <button data-remove="${key}">×</button></span>
     `).join("");
     bindRemove();
   }
@@ -1672,7 +1706,7 @@ function renderDislikesStep() {
 }
 
 function tagLabels(tags) {
-  return tags.filter((t) => TAGS[t]).map((t) => TAGS[t]).join(" · ");
+  return tags.filter((t) => APP_TAGS[t]).map((t) => APP_TAGS[t]).join(" · ");
 }
 
 function formatDate(value) {
@@ -1959,8 +1993,8 @@ const MODAL_TAG_PRIORITY = ["cheap", "healthy", "quick", "high_protein", "protei
 function usefulRecipeTags(recipe) {
   const seenLabels = new Set();
   return MODAL_TAG_PRIORITY
-    .filter((tag) => recipe.tags.includes(tag) && TAGS[tag])
-    .map((tag) => TAGS[tag])
+    .filter((tag) => recipe.tags.includes(tag) && APP_TAGS[tag])
+    .map((tag) => APP_TAGS[tag])
     .filter((label) => {
       const normalized = normalizeFoodText(label);
       if (seenLabels.has(normalized)) return false;
@@ -1977,11 +2011,11 @@ function formatIngredientAmount(amount) {
 }
 
 function openRecipeModal(recipeId, context = {}) {
-  const recipe = RECIPES.find((r) => r.id === recipeId);
+  const recipe = APP_RECIPES.find((r) => r.id === recipeId);
   if (!recipe) return;
   const multiplier = state.people / recipe.servingsBase;
   const ingredientsHtml = recipe.ingredients.map((ing) => {
-    const product = PRODUCTS[ing.key];
+    const product = APP_PRODUCTS[ing.key];
     const amount = (ing.amount * multiplier);
     return `
       <li class="ingredient-line">
@@ -2073,12 +2107,12 @@ function runDietaryAssertions() {
   console.assert(!veganPlan.error, "vegan plan should be generated");
   console.assert(!veganKeys.has("chicken_breast"), "vegan plan must not include chicken");
   console.assert(!veganKeys.has("eggs"), "vegan plan must not include egg");
-  console.assert(![...veganKeys].some((key) => INGREDIENT_META[key] && INGREDIENT_META[key].containsDairy), "vegan plan must not include dairy");
+  console.assert(![...veganKeys].some((key) => APP_INGREDIENT_META[key] && APP_INGREDIENT_META[key].containsDairy), "vegan plan must not include dairy");
 
   const vegetarianPlan = generatePlan({ goals: ["vegetarian"], people: 2, days: 3, pantry: [], silentStats: true });
   const vegetarianKeys = planIngredientKeys(vegetarianPlan);
   console.assert(!vegetarianPlan.error, "vegetarian plan should be generated");
-  console.assert(![...vegetarianKeys].some((key) => INGREDIENT_META[key] && (INGREDIENT_META[key].containsMeat || INGREDIENT_META[key].containsFish)), "vegetarian plan must not include meat/fish");
+  console.assert(![...vegetarianKeys].some((key) => APP_INGREDIENT_META[key] && (APP_INGREDIENT_META[key].containsMeat || APP_INGREDIENT_META[key].containsFish)), "vegetarian plan must not include meat/fish");
 
   const dairyFreePlan = generatePlan({ goals: ["dairy_free"], people: 2, days: 3, pantry: [], silentStats: true });
   const dairyFreeKeys = planIngredientKeys(dairyFreePlan);
@@ -2163,10 +2197,11 @@ function runWeeklyPlanningAssertions() {
 }
 
 if (IS_BROWSER) {
-  runDietaryAssertions();
-  runAvoidFoodAssertions();
-  runWeeklyPlanningAssertions();
-  state.step = -1;
-  render();
-  scrollToPageTop();
+  document.addEventListener("DOMContentLoaded", () => {
+    try {
+      initApp();
+    } catch (error) {
+      showStartupError(error);
+    }
+  });
 }

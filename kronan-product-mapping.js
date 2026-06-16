@@ -321,4 +321,10 @@ const KRONAN_PRODUCT_MAPPING = {
   },
 };
 
-module.exports = { KRONAN_PRODUCT_MAPPING };
+if (typeof window !== "undefined") {
+  window.KRONAN_PRODUCT_MAPPING = KRONAN_PRODUCT_MAPPING;
+}
+
+if (typeof module !== "undefined") {
+  module.exports = { KRONAN_PRODUCT_MAPPING };
+}
