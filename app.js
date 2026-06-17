@@ -123,6 +123,7 @@ const AVOID_QUICK_CHIPS = [
   "Fiskur",
   "Skelfiskur",
   "Sesam",
+  "Hveiti",
 ];
 const AVOID_GROUPS = {
   fish: {
