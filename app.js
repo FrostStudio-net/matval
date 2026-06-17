@@ -16,23 +16,55 @@ const STORES = [
   { id: "pris", name: "Prís", available: false, note: "Kemur síðar", logo: "public/pris.png"  },
 ];
 
+const ICONS = {
+  budget: "/public/icons/icons8-cash-96.png",
+  healthy: "/public/icons/icons8-greek-salad-96.png",
+  easy: "/public/icons/icons8-fit-96.png",
+  muscle: "/public/icons/icons8-fit-96.png",
+  protein: "/public/icons/icons8-poultry-leg-96.png",
+  dairyfree: "/public/icons/icons8-milk-carton-96.png",
+  vegan: "/public/icons/icons8-vegan-food-96.png",
+  vegetarian: "/public/icons/icons8-greek-salad-96.png",
+  quick: "/public/icons/icons8-clock-96.png",
+  family: "/public/icons/icons8-family-96.png",
+  people: "/public/icons/icons8-standing-man-96.png",
+  peopleGroup: "/public/icons/icons8-people-96.png",
+  calendar: "/public/icons/icons8-calendar-96.png",
+  calendarActive: "/public/icons/icons8-calendar-active-96.png",
+  cart: "/public/icons/icons8-shopping-cart-96.png",
+  cartActive: "/public/icons/icons8-shopping-active-cart-96.png",
+  recipes: "/public/icons/icons8-carrot-96.png",
+  leftovers: "/public/icons/icons8-calendar-96.png",
+};
+
+function iconImg(iconKey, alt = "", className = "ui-icon") {
+  const src = ICONS[iconKey];
+  if (!src) return "";
+  const safeAlt = escapeHtml(alt);
+  return `<img class="${className}" src="${src}" alt="${safeAlt}" aria-hidden="${alt ? "false" : "true"}">`;
+}
+
+function repeatedIcon(iconKey, count, className = "ui-icon people-icon") {
+  return Array.from({ length: count }, () => iconImg(iconKey, "", className)).join("");
+}
+
 const GOALS = [
-  { id: "cheap", label: "Borða ódýrt", icon: "💰" },
-  { id: "healthy", label: "Borða hollara", icon: "🥗" },
-  { id: "weight_loss", label: "Léttast", icon: "📉" },
-  { id: "muscle_gain", label: "Byggja vöðva", icon: "💪" },
-  { id: "high_protein", label: "Próteinríkt", icon: "🍗" },
-  { id: "dairy_free", label: "Mjólkurlaust", icon: "🥛" },
-  { id: "vegan", label: "Vegan", icon: "🌱" },
-  { id: "vegetarian", label: "Grænmetisfæði", icon: "🥕" },
-  { id: "quick", label: "Fljótlegur matur", icon: "⏱️" },
-  { id: "family", label: "Fjölskyldumatur", icon: "👨‍👩‍👧" },
+  { id: "cheap", label: "Borða ódýrt", icon: "budget" },
+  { id: "healthy", label: "Borða hollara", icon: "healthy" },
+  { id: "weight_loss", label: "Léttast", icon: "easy" },
+  { id: "muscle_gain", label: "Byggja vöðva", icon: "muscle" },
+  { id: "high_protein", label: "Próteinríkt", icon: "protein" },
+  { id: "dairy_free", label: "Mjólkurlaust", icon: "dairyfree" },
+  { id: "vegan", label: "Vegan", icon: "vegan" },
+  { id: "vegetarian", label: "Grænmetisfæði", icon: "vegetarian" },
+  { id: "quick", label: "Fljótlegur matur", icon: "quick" },
+  { id: "family", label: "Fjölskyldumatur", icon: "family" },
 ];
 
 const PEOPLE_OPTIONS = [
-  { id: 1, label: "1 manneskja" },
-  { id: 2, label: "2 manneskjur" },
-  { id: 4, label: "Fjölskylda (3–5 manns)" },
+  { id: 1, label: "1 manneskja", people: 1, icon: "people", iconCount: 1 },
+  { id: 2, label: "2 manneskjur", people: 2, icon: "peopleGroup", iconCount: 1 },
+  { id: 4, label: "Fjölskylda (3–5 manns)", people: 4, icon: "family", iconCount: 1 },
 ];
 
 const WEEK_DAYS = [
@@ -150,10 +182,17 @@ const state = {
   traceId: null,
 };
 
-const fmt = (n) => Math.round(n).toLocaleString("is-IS") + " kr";
 const pricingRequest = { id: 0 };
 const PLAN_ERROR_MESSAGE = "Ekki tókst að búa til plan með þessum skilyrðum. Prófaðu hærra budget eða færri takmarkanir.";
 const IS_BROWSER = typeof window !== "undefined" && typeof document !== "undefined";
+
+function formatKr(amount) {
+  const value = Number(amount) || 0;
+
+  return `${new Intl.NumberFormat("de-DE", {
+    maximumFractionDigits: 0,
+  }).format(Math.round(value))} kr.`;
+}
 
 function escapeHtml(value) {
   return String(value ?? "")
@@ -1555,15 +1594,15 @@ function renderHero() {
         <div class="receipt">
           <h3>Matarplan vikunnar</h3>
           <div class="sub">Krónan · 5 dagar · 2 manns</div>
-          <div class="row"><span>Kjúklingabringur 1,2 kg</span><span class="mono">2.879 kr</span></div>
-          <div class="row"><span>Hrísgrjón 0,8 kg</span><span class="mono">319 kr</span></div>
-          <div class="row"><span>Egg 10 stk</span><span class="mono">699 kr</span></div>
-          <div class="row"><span>Hafrar 0,3 kg</span><span class="mono">105 kr</span></div>
-          <div class="row"><span>Bláber frosin</span><span class="mono">599 kr</span></div>
-          <div class="row"><span>Túnfiskur x3</span><span class="mono">897 kr</span></div>
-          <div class="row"><span>Pasta + tómatsósa</span><span class="mono">658 kr</span></div>
+          <div class="row"><span>Kjúklingabringur 1,2 kg</span><span class="mono">${formatKr(2879)}</span></div>
+          <div class="row"><span>Hrísgrjón 0,8 kg</span><span class="mono">${formatKr(319)}</span></div>
+          <div class="row"><span>Egg 10 stk</span><span class="mono">${formatKr(699)}</span></div>
+          <div class="row"><span>Hafrar 0,3 kg</span><span class="mono">${formatKr(105)}</span></div>
+          <div class="row"><span>Bláber frosin</span><span class="mono">${formatKr(599)}</span></div>
+          <div class="row"><span>Túnfiskur x3</span><span class="mono">${formatKr(897)}</span></div>
+          <div class="row"><span>Pasta + tómatsósa</span><span class="mono">${formatKr(658)}</span></div>
           <div class="row"><span item-meta>...</span><span class="item-meta">+ 6 vörur</span></div>
-          <div class="row total"><span>Heildarverð</span><span>17.850 kr</span></div>
+          <div class="row total"><span>Heildarverð</span><span>${formatKr(17850)}</span></div>
           <div class="barcode"></div>
         </div>
       </div>
@@ -1577,10 +1616,10 @@ function renderHero() {
           <p>Matur er dýr á Íslandi og fólk eyðir of miklum tíma í að ákveða hvað á að elda. Matval reiknar verðið fyrirfram, nýtir afganga og passar að innkaupin passi við matseðilinn.</p>
         </div>
         <div class="option-grid" style="grid-template-columns: repeat(auto-fill, minmax(220px,1fr));">
-          <div class="option" style="cursor:default;"><span class="icon">🧮</span> Áætlað heildarverð áður en þú verslar</div>
-          <div class="option" style="cursor:default;"><span class="icon">🍳</span> 30+ uppskriftir</div>
-          <div class="option" style="cursor:default;"><span class="icon">♻️</span> Afgangar nýttir í næstu máltíð</div>
-          <div class="option" style="cursor:default;"><span class="icon">🛒</span> Innkaupalisti tilbúinn</div>
+          <div class="option" style="cursor:default;"><span class="option-icon">${iconImg("budget")}</span> Áætlað heildarverð áður en þú verslar</div>
+          <div class="option" style="cursor:default;"><span class="option-icon">${iconImg("recipes")}</span> 30+ uppskriftir</div>
+          <div class="option" style="cursor:default;"><span class="option-icon">${iconImg("leftovers")}</span> Afgangar nýttir í næstu máltíð</div>
+          <div class="option" style="cursor:default;"><span class="option-icon">${iconImg("cart")}</span> Innkaupalisti tilbúinn</div>
         </div>
       </div>
     </section>
@@ -1646,7 +1685,7 @@ function renderGoalsStep() {
     <div class="option-grid">
       ${GOALS.map((g) => `
         <div class="option ${state.goals.includes(g.id) ? "selected" : ""}" data-goal="${g.id}">
-          <span class="icon">${g.icon}</span> ${g.label}
+          <span class="option-icon">${iconImg(g.icon)}</span> ${g.label}
         </div>
       `).join("")}
     </div>
@@ -1670,7 +1709,7 @@ function renderStoreStep() {
     <div class="option-grid">
       ${STORES.map((s) => `
         <div class="option ${state.store === s.id ? "selected" : ""} ${!s.available ? "" : ""}" data-store="${s.id}" style="${s.available ? "" : "opacity:0.5; cursor:not-allowed;"}">
-          ${s.logo ? `<img class="store-logo" src="${s.logo}" alt="" aria-hidden="true" />` : `<span class="icon">🏬</span>`}
+          ${s.logo ? `<img class="store-logo" src="${s.logo}" alt="" aria-hidden="true" />` : `<span class="option-icon">${iconImg("cart")}</span>`}
           <div>
             <div>${s.name}</div>
             <div style="font-size:0.75rem; color:var(--muted);">${s.note}</div>
@@ -1696,25 +1735,25 @@ function renderStoreStep() {
 function renderBudgetStep() {
   const body = `
     <p style="color:var(--muted); margin-bottom:6px;">Hvað viltu eyða í mat fyrir alla vikuna?</p>
-    <div class="budget-display mono">${fmt(state.budget)}</div>
+    <div class="budget-display mono">${formatKr(state.budget)}</div>
     <input type="range" min="6000" max="50000" step="500" value="${state.budget}" id="budgetRange" />
     <div style="display:flex; justify-content:space-between; font-size:0.78rem; color:var(--muted); margin-top:6px;" class="mono">
-      <span>6.000 kr</span><span>50.000 kr</span>
+      <span>${formatKr(6000)}</span><span>${formatKr(50000)}</span>
     </div>
     <div class="option-grid compact-option-grid">
-      ${[12000, 18000, 25000, 35000].map((b) => `<div class="option" data-budget="${b}" style="justify-content:center;">${fmt(b)}</div>`).join("")}
+      ${[12000, 18000, 25000, 35000].map((b) => `<div class="option" data-budget="${b}" style="justify-content:center;">${formatKr(b)}</div>`).join("")}
     </div>
   `;
   quizShell("Skref 3 — Kostnaður", "Hvað má vikan kosta?", body);
 
   document.getElementById("budgetRange").oninput = (e) => {
     state.budget = Number(e.target.value);
-    document.querySelector(".budget-display").textContent = fmt(state.budget);
+    document.querySelector(".budget-display").textContent = formatKr(state.budget);
   };
   document.querySelectorAll("[data-budget]").forEach((el) => {
     el.onclick = () => {
       state.budget = Number(el.dataset.budget);
-      document.querySelector(".budget-display").textContent = fmt(state.budget);
+      document.querySelector(".budget-display").textContent = formatKr(state.budget);
       document.getElementById("budgetRange").value = state.budget;
     };
   });
@@ -1726,7 +1765,10 @@ function renderPeopleStep() {
     <div class="option-grid">
       ${PEOPLE_OPTIONS.map((p) => `
         <div class="option ${state.people === p.id ? "selected" : ""}" data-people="${p.id}">
-          <span class="icon">${p.id === 1 ? "🧍" : p.id === 2 ? "🧍🧍" : "👨‍👩‍👧‍👦"}</span> ${p.label}
+          <span class="option-icon people-icons">
+            ${p.iconCount > 1 ? repeatedIcon(p.icon, p.iconCount) : iconImg(p.icon)}
+          </span>
+          ${p.label}
         </div>
       `).join("")}
     </div>
@@ -1832,7 +1874,10 @@ function renderPantryStep() {
     <p style="color:var(--muted); margin-bottom:14px;">Hvað ert þú að eiga til heima? Appið reynir að nota það og sleppir því úr innkaupalistanum.</p>
     <div class="pantry-tags" id="pantryTags">
       ${state.pantry.map((key) => `
-        <span class="pantry-tag" data-key="${key}">${APP_PRODUCTS[key].name} <button data-remove="${key}">×</button></span>
+        <button class="pantry-tag" type="button" data-pantry-remove="${key}">
+          <span>${APP_PRODUCTS[key].name}</span>
+          <span class="pantry-remove-mark" aria-hidden="true">×</span>
+        </button>
       `).join("")}
     </div>
     <div style="margin-top:14px;">
@@ -1847,14 +1892,19 @@ function renderPantryStep() {
 
   function refreshTags() {
     document.getElementById("pantryTags").innerHTML = state.pantry.map((key) => `
-      <span class="pantry-tag" data-key="${key}">${APP_PRODUCTS[key].name} <button data-remove="${key}">×</button></span>
+      <button class="pantry-tag" type="button" data-pantry-remove="${key}">
+        <span>${APP_PRODUCTS[key].name}</span>
+        <span class="pantry-remove-mark" aria-hidden="true">×</span>
+      </button>
     `).join("");
     bindRemove();
   }
   function bindRemove() {
-    document.querySelectorAll("[data-remove]").forEach((el) => {
-      el.onclick = () => {
-        state.pantry = state.pantry.filter((k) => k !== el.dataset.remove);
+    document.querySelectorAll("[data-pantry-remove]").forEach((el) => {
+      el.onclick = (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        state.pantry = state.pantry.filter((k) => k !== el.dataset.pantryRemove);
         refreshTags();
         renderPantryStep();
       };
@@ -1993,7 +2043,7 @@ function renderMyPlans() {
 
         <div class="saved-stats">
           <div class="stat-card"><span>Vistuð plön</span><strong>${stats.plansSaved}</strong></div>
-          <div class="stat-card"><span>Meðalkostnaður á viku</span><strong>${fmt(stats.averageWeeklyCost)}</strong></div>
+          <div class="stat-card"><span>Meðalkostnaður á viku</span><strong>${formatKr(stats.averageWeeklyCost)}</strong></div>
           <div class="stat-card"><span>Algengasta prótein</span><strong>${stats.mostUsedProtein}</strong></div>
         </div>
 
@@ -2007,7 +2057,7 @@ function renderMyPlans() {
               <div class="saved-plan-card">
                 <div>
                   <h3>${plan.title || "Vistað plan"}</h3>
-                  <div class="saved-plan-meta">${formatDate(plan.createdAt)} · ${mealCount} máltíðir · ${savedMeals} · ${fmt(plan.totalCost || 0)}</div>
+                  <div class="saved-plan-meta">${formatDate(plan.createdAt)} · ${mealCount} máltíðir · ${savedMeals} · ${formatKr(plan.totalCost || 0)}</div>
                   <div class="saved-plan-meta">${goalLabels.length ? goalLabels.join(", ") : "Engin markmið"}${dislikeLabels.length ? ` · Forðast: ${dislikeLabels.map(escapeHtml).join(", ")}` : ""}</div>
                 </div>
                 <div class="saved-plan-actions">
@@ -2081,6 +2131,8 @@ function renderResults() {
       ? "Náði ekki að sækja verð, sýni áætlað verð."
       : null;
   const replacementMessage = state.replacementMessage;
+  const planTabActive = state.resultTab === "plan";
+  const groceryTabActive = state.resultTab === "grocery";
   const shoppingDisplayName = (item) => {
     if (item.source === "kronan" && item.isEstimated === false) {
       return item.matchedProductName || item.productName || item.nameFromStore || item.name || "Vara";
@@ -2150,7 +2202,7 @@ function renderResults() {
           <div style="flex:1;">
             <div class="meal-name" data-recipe="${meal.recipe.id}" data-recipe-day="${i}" data-recipe-slot="${type}">${meal.recipe.name}</div>
             <div class="meal-tags">${tagLabels(meal.recipe.tags.slice(0,3))} · ${meal.recipe.calories} kcal · ${meal.recipe.protein}g prótein</div>
-            ${meal.leftover ? `<div class="leftover-note">♻️ Afgangaplan: notar afganga frá fyrri degi</div>` : ""}
+            ${meal.leftover ? `<div class="leftover-note">${iconImg("leftovers")} Afgangaplan: notar afganga frá fyrri degi</div>` : ""}
             <div class="meal-actions">
               <button class="meal-action-btn" data-replace-day="${i}" data-replace-slot="${type}">↻ Skipta út</button>
             </div>
@@ -2172,7 +2224,7 @@ function renderResults() {
               <span class="shopping-item-name">${escapeHtml(shoppingDisplayName(item))}</span>
               <span class="shopping-item-meta">${escapeHtml(shoppingLineMeta(item))}${badge ? ` · <span class="shopping-badge">${escapeHtml(badge)}</span>` : ""}</span>
             </span>
-            <span class="shopping-item-price mono">${fmt(shoppingLinePrice(item))}</span>
+            <span class="shopping-item-price mono">${formatKr(shoppingLinePrice(item))}</span>
           </label>
         `;
       }).join("")}
@@ -2186,7 +2238,7 @@ function renderResults() {
             <h3>Innkaupalisti — Krónan</h3>
             <div class="shopping-source-note">Verð sótt frá Krónunni þegar hægt er.</div>
           </div>
-          <div class="mobile-grocery-total mono">${fmt(plan.totalPrice)}</div>
+          <div class="mobile-grocery-total mono">${formatKr(plan.totalPrice)}</div>
           <div class="mobile-grocery-count">${plan.shoppingList.length} ${plan.shoppingList.length === 1 ? "vara" : "vörur"}</div>
           <button class="meal-action-btn refresh-prices-btn" type="button">Uppfæra verð</button>
         </div>
@@ -2199,14 +2251,14 @@ function renderResults() {
       ${groceryGroupsHtml}
       ${state.pantry.length ? `<div style="margin-top:10px; font-size:0.8rem; color:var(--muted);">✓ ${state.pantry.length} vara/vörur frá "til heima" eru ekki inni á listanum.</div>` : ""}
       ${estimatedCount ? `<div class="budget-note" style="margin-top:10px;">${estimatedCount} vara/vörur eru með áætluðu verði.</div>` : ""}
-      <div class="total-row"><span>Heildarverð</span><span>${fmt(plan.totalPrice)}</span></div>
+      <div class="total-row"><span>Heildarverð</span><span>${formatKr(plan.totalPrice)}</span></div>
       <div class="budget-bar"><div class="budget-bar-fill ${overBudget ? "over" : ""}" style="width:${pct}%"></div></div>
       <div class="budget-note">
         ${overBudget
-          ? `Planið er ${fmt(plan.totalPrice - state.budget)} yfir budget (${fmt(state.budget)}).`
-          : `Planið er innan budget — ${fmt(state.budget - plan.totalPrice)} til skiptanna.`}
+          ? `Planið er ${formatKr(plan.totalPrice - state.budget)} yfir budget (${formatKr(state.budget)}).`
+          : `Planið er innan budget — ${formatKr(state.budget - plan.totalPrice)} til skiptanna.`}
       </div>
-      <div class="budget-note" style="margin-top:8px;">≈ ${fmt(perDay)} á dag · ≈ ${fmt(perMeal)} á máltíð</div>
+      <div class="budget-note" style="margin-top:8px;">≈ ${formatKr(perDay)} á dag · ≈ ${formatKr(perMeal)} á máltíð</div>
       <div class="budget-note" style="margin-top:8px;">Verð geta breyst.</div>
     </div>
   `;
@@ -2231,16 +2283,22 @@ function renderResults() {
 
         <div class="mobile-only-result">
           <div class="mobile-result-tabs" role="tablist" aria-label="Niðurstaða">
-            <button class="mobile-result-tab ${state.resultTab === "plan" ? "active" : ""}" type="button" data-result-tab="plan">📅 Matarplan</button>
-            <button class="mobile-result-tab ${state.resultTab === "grocery" ? "active" : ""}" type="button" data-result-tab="grocery">🛒 Innkaupalisti</button>
+            <button class="mobile-result-tab ${planTabActive ? "active" : ""}" type="button" data-result-tab="plan">
+              ${iconImg(planTabActive ? "calendarActive" : "calendar", "", "ui-icon result-tab-icon")}
+              <span>Matarplan</span>
+            </button>
+            <button class="mobile-result-tab ${groceryTabActive ? "active" : ""}" type="button" data-result-tab="grocery">
+              ${iconImg(groceryTabActive ? "cartActive" : "cart", "", "ui-icon result-tab-icon")}
+              <span>Innkaupalisti</span>
+            </button>
           </div>
-          <div class="mobile-result-panel ${state.resultTab === "plan" ? "active" : ""}" data-panel="plan" ${state.resultTab === "plan" ? "" : "hidden"}>
+          <div class="mobile-result-panel ${planTabActive ? "active" : ""}" data-panel="plan" ${planTabActive ? "" : "hidden"}>
             <div class="mobile-day-tabs" aria-label="Veldu dag">
               ${resultDayTabs}
             </div>
             ${renderDayCard(plan.days[state.activeResultDay], state.activeResultDay, { mobile: true })}
           </div>
-          <div class="mobile-result-panel ${state.resultTab === "grocery" ? "active" : ""}" data-panel="grocery" ${state.resultTab === "grocery" ? "" : "hidden"}>
+          <div class="mobile-result-panel ${groceryTabActive ? "active" : ""}" data-panel="grocery" ${groceryTabActive ? "" : "hidden"}>
             ${groceryListHtml(true)}
           </div>
         </div>
@@ -2343,7 +2401,7 @@ function openRecipeModal(recipeId, context = {}) {
     ? `<img class="recipe-hero-image" src="${escapeHtml(recipe.imageUrl)}" alt="${escapeHtml(recipe.imageAlt || recipe.name)}" />`
     : `
       <div class="recipe-placeholder" role="img" aria-label="Mynd kemur síðar fyrir ${escapeHtml(recipe.name)}">
-        <div class="recipe-placeholder-icon">🍽</div>
+        <div class="recipe-placeholder-icon">${iconImg("healthy", "", "ui-icon recipe-placeholder-ui-icon")}</div>
         <div class="recipe-placeholder-title">${escapeHtml(recipe.name)}</div>
         <div class="recipe-placeholder-note">Mynd kemur síðar</div>
       </div>
@@ -2358,11 +2416,11 @@ function openRecipeModal(recipeId, context = {}) {
         <div class="modal-content">
           <h3>${escapeHtml(recipe.name)}</h3>
           <div class="meta-row">
-            <span>⏱ <strong>${recipe.time} mín</strong></span>
-            <span>🔥 <strong>${recipe.calories} kcal</strong></span>
-            <span>🍗 <strong>${recipe.protein}g</strong> prótein</span>
+            <span>${iconImg("quick")} <strong>${recipe.time} mín</strong></span>
+            <span>${iconImg("healthy")} <strong>${recipe.calories} kcal</strong></span>
+            <span>${iconImg("protein")} <strong>${recipe.protein}g</strong> prótein</span>
           </div>
-          <div class="recipe-price">💰 <strong>${fmt(recipePrice(recipe, state.people))}</strong> fyrir ${state.people} ${state.people === 1 ? "mann" : "manns"}</div>
+          <div class="recipe-price">${iconImg("budget")} <strong>${formatKr(recipePrice(recipe, state.people))}</strong> fyrir ${state.people} ${state.people === 1 ? "mann" : "manns"}</div>
           ${tagHtml ? `<div class="modal-tags">${tagHtml}</div>` : ""}
           <h4>Hráefni <span>(${state.people} ${state.people === 1 ? "skammtur" : "skammtar"})</span></h4>
           <ul class="ingredient-list">${ingredientsHtml}</ul>

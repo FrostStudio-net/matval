@@ -235,7 +235,68 @@
     min-width:0;
   }
   .option.selected{ border-color: var(--moss); background: rgba(63,93,69,0.08); font-weight:600; }
-  .option .icon{ font-size:1.2rem; }
+  .ui-icon{
+    width:20px;
+    height:20px;
+    object-fit:contain;
+    display:inline-block;
+    vertical-align:middle;
+    flex-shrink:0;
+  }
+  .option-icon{
+    width:24px;
+    height:24px;
+    display:inline-flex;
+    align-items:center;
+    justify-content:center;
+    flex-shrink:0;
+  }
+  .option-icon .ui-icon{
+    width:22px;
+    height:22px;
+  }
+  .people-icons{
+    display:inline-flex;
+    align-items:center;
+    gap:2px;
+    min-width:28px;
+  }
+  .people-icons .people-icon{
+    width:15px;
+    height:15px;
+    object-fit:contain;
+  }
+  .mobile-result-tab .ui-icon,
+  .result-tab .ui-icon{
+    width:20px;
+    height:20px;
+    margin-right:6px;
+  }
+  .result-tab-icon{
+    width:20px;
+    height:20px;
+    object-fit:contain;
+    flex-shrink:0;
+  }
+  .option-card,
+  .mobile-result-tab,
+  .result-tab{
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    gap:8px;
+  }
+  .leftover-note .ui-icon,
+  .meta-row .ui-icon,
+  .recipe-price .ui-icon{
+    width:17px;
+    height:17px;
+    margin-right:5px;
+  }
+  .recipe-placeholder-ui-icon{
+    width:34px;
+    height:34px;
+  }
   .option .store-logo{
     width:28px;
     height:28px;
@@ -321,9 +382,11 @@
   .pantry-tags{ display:flex; flex-wrap:wrap; gap:8px; }
   .pantry-tag{
     background: var(--moss); color:var(--paper); border-radius:999px; padding:6px 14px;
+    border:0; cursor:pointer; font-family:var(--font-body);
     font-size:0.85rem; display:flex; align-items:center; gap:8px;
   }
-  .pantry-tag button{ background:none; border:none; color:var(--paper); cursor:pointer; font-size:1rem; line-height:1; padding:0; }
+  .pantry-tag button,
+  .pantry-remove-mark{ background:none; border:none; color:var(--paper); cursor:pointer; font-size:1rem; line-height:1; padding:0; }
   .pantry-suggestions{ display:flex; flex-wrap:wrap; gap:8px; margin-top:10px; }
   .pantry-suggestions .option{ padding: 8px 14px; font-size:0.85rem; }
 
@@ -724,7 +787,6 @@
     .option-grid{ grid-template-columns:repeat(2, minmax(0, 1fr)); gap:6px; margin-bottom:10px; }
     .compact-option-grid{ grid-template-columns:repeat(2, minmax(0, 1fr)); }
     .option{ min-height:48px; padding:8px 9px; font-size:0.82rem; line-height:1.18; gap:7px; border-radius:9px; }
-    .option .icon{ font-size:0.94rem; }
     .pantry-suggestions{ display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:6px; margin-top:7px; margin-bottom:10px; }
     .pantry-suggestions .option{ min-height:34px; padding:7px 9px; font-size:0.78rem; }
     .pantry-tags{ gap:6px; }
