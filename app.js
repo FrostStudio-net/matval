@@ -19,7 +19,7 @@ const STORES = [
 const ICONS = {
   budget: "/public/icons/icons8-cash-96.png",
   healthy: "/public/icons/icons8-greek-salad-96.png",
-  easy: "/public/icons/icons8-fit-96.png",
+  easy: "/public/icons/icons8-decline-96.png",
   muscle: "/public/icons/icons8-fit-96.png",
   protein: "/public/icons/icons8-poultry-leg-96.png",
   dairyfree: "/public/icons/icons8-milk-carton-96.png",
