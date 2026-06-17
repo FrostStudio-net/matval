@@ -12,6 +12,8 @@ const STORES = [
   { id: "bonus", name: "Bónus", available: false, note: "Kemur síðar", logo: "public/Bonus_The_Piglet_fc_RGB.webp"  },
   { id: "netto", name: "Nettó", available: false, note: "Kemur síðar", logo: "public/NETTÓ-LÓGÓ-01-1.jpg"  },
   { id: "hagkaup", name: "Hagkaup", available: false, note: "Kemur síðar", logo: "public/hagkaup-seeklogo.png"  },
+  { id: "costco", name: "Costco", available: false, note: "Kemur síðar", logo: "public/costco.png"  },
+  { id: "pris", name: "Prís", available: false, note: "Kemur síðar", logo: "public/pris.png"  },
 ];
 
 const GOALS = [
@@ -139,6 +141,8 @@ const state = {
   pricingStatus: "idle",
   pricingError: null,
   replacementMessage: null,
+  previousProgressRatio: 0,
+  currentProgressRatio: 0,
   traceId: null,
 };
 
@@ -208,7 +212,14 @@ if (typeof window !== "undefined" && window.history && "scrollRestoration" in wi
 }
 
 function navigateToStep(step) {
+  const totalSteps = STEP_LABELS.length;
+  state.previousProgressRatio = state.step >= 0 && state.step < totalSteps
+    ? (state.step + 1) / totalSteps
+    : state.currentProgressRatio || 0;
   state.step = step;
+  state.currentProgressRatio = state.step >= 0 && state.step < totalSteps
+    ? (state.step + 1) / totalSteps
+    : 0;
   render();
   scrollToPageTop();
 }
@@ -1453,13 +1464,13 @@ function render() {
     const s = Number(el.dataset.step);
     el.classList.toggle("active", s === state.step);
   });
-  document.getElementById("stepNav").style.display = state.step >= 0 && state.step <= 7 ? "flex" : "none";
+  document.getElementById("stepNav").style.display = "none";
   const mobileProgress = document.getElementById("mobileStepProgress");
   const mobileStepText = document.getElementById("mobileStepText");
   const mobileStepFill = document.getElementById("mobileStepFill");
   if (mobileProgress && mobileStepText && mobileStepFill) {
-    const inQuiz = state.step >= 0 && state.step <= 6;
-    mobileProgress.style.display = inQuiz ? "" : "none";
+    const inQuiz = false;
+    mobileProgress.style.display = "none";
     if (inQuiz) {
       mobileStepText.textContent = `Skref ${state.step + 1} af 7 · ${STEP_LABELS[state.step]}`;
       mobileStepFill.style.width = `${((state.step + 1) / 7) * 100}%`;
@@ -1533,24 +1544,43 @@ function renderHero() {
 
 function quizShell(stepLabel, title, bodyHtml, { nextLabel = "Áfram", nextDisabled = false, showBack = true } = {}) {
   clearInteractionState();
+  const totalSteps = STEP_LABELS.length;
+  const newProgressRatio = state.step >= 0 && state.step < totalSteps
+    ? (state.step + 1) / totalSteps
+    : 0;
+  const previousProgressRatio = Number.isFinite(state.previousProgressRatio)
+    ? state.previousProgressRatio
+    : newProgressRatio;
+  state.currentProgressRatio = newProgressRatio;
+  const progressText = `Skref ${state.step + 1} af ${totalSteps} · ${STEP_LABELS[state.step]}`;
   app.innerHTML = `
     <section class="quiz-section">
       <div class="wrap quiz-wrap">
         <div class="quiz-card">
-          <div class="quiz-step-label">${stepLabel}</div>
+          <div class="quiz-inline-progress">
+            <div class="quiz-inline-progress-text">${progressText}</div>
+            <div class="quiz-inline-progress-track">
+              <div class="quiz-inline-progress-fill" id="quizProgressFill" style="--progress-ratio:${previousProgressRatio}"></div>
+            </div>
+          </div>
           <h3>${title}</h3>
           <div class="quiz-body">
             ${bodyHtml}
           </div>
           <div class="quiz-nav">
             <button class="btn ghost" id="backBtn" ${showBack ? "" : "style='visibility:hidden'"}>Til baka</button>
-            <div class="quiz-progress">Skref ${state.step + 1} af 7</div>
             <button class="btn" id="nextBtn" ${nextDisabled ? "disabled" : ""}>${nextLabel}</button>
           </div>
         </div>
       </div>
     </section>
   `;
+  const progressFill = document.getElementById("quizProgressFill");
+  if (progressFill) {
+    requestAnimationFrame(() => {
+      progressFill.style.setProperty("--progress-ratio", String(newProgressRatio));
+    });
+  }
   document.getElementById("backBtn").onclick = () => {
     navigateToStep(state.step === 0 ? -1 : state.step - 1);
   };
