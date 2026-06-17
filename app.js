@@ -2194,12 +2194,6 @@ function renderResults() {
             </div>
           </div>
         </div>
-
-        <div class="section-head" style="margin-top:24px;">
-          <div class="eyebrow">Næsta skref</div>
-          <h2>Vista planið</h2>
-          <p>Skráning og vistun kemur í næstu útgáfu — núna geturðu skoðað uppskriftir með því að smella á matarheiti.</p>
-        </div>
       </div>
     </section>
     <div id="modalRoot"></div>
