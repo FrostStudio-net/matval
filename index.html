@@ -999,8 +999,8 @@
 
   @media (max-width: 700px){
     :root{
-      --mobile-header-height:64px;
-      --mobile-quiz-nav-height:88px;
+      --mobile-header-height:58px;
+      --mobile-quiz-nav-height:78px;
     }
     body.quiz-active{
       overflow:hidden;
@@ -1017,7 +1017,7 @@
       justify-content:center;
       align-items:stretch;
       min-height:0;
-      padding:14px 14px calc(var(--mobile-quiz-nav-height) + env(safe-area-inset-bottom));
+      padding:8px 14px calc(var(--mobile-quiz-nav-height) + env(safe-area-inset-bottom));
       box-sizing:border-box;
     }
     body.quiz-active .quiz-wrap{
@@ -1026,7 +1026,7 @@
     }
     body.quiz-active .quiz-card{
       width:100%;
-      max-height:calc(100dvh - var(--mobile-header-height) - var(--mobile-quiz-nav-height) - 28px) !important;
+      max-height:calc(100dvh - var(--mobile-header-height) - var(--mobile-quiz-nav-height) - 16px) !important;
       height:auto !important;
       overflow:hidden !important;
       box-sizing:border-box;
@@ -1072,20 +1072,20 @@
     }
     body.quiz-active .step-goals-card,
     body.quiz-active .step-days-card{
-      padding:14px;
+      padding:12px;
     }
     body.quiz-active .step-goals-card h3,
     body.quiz-active .step-days-card h3{
-      font-size:1.55rem;
+      font-size:1.34rem;
       line-height:1.08;
-      margin-bottom:10px;
+      margin-bottom:7px;
     }
     body.quiz-active .step-goals-card .quiz-body > p,
     body.quiz-active .step-days-card .quiz-body > p,
     body.quiz-active .step-days-card .scope-controls > p{
       font-size:0.95rem;
-      line-height:1.25;
-      margin-bottom:12px !important;
+      line-height:1.2;
+      margin-bottom:8px !important;
     }
     body.quiz-active .step-goals-card .option-grid{
       grid-template-columns:repeat(2, minmax(0, 1fr));
@@ -1097,30 +1097,84 @@
       padding:10px 12px;
     }
     body.quiz-active .step-days-card .scope-controls{
-      gap:8px;
+      gap:6px;
     }
     body.quiz-active .step-days-card .scope-presets{
       grid-template-columns:repeat(2, minmax(0, 1fr));
-      gap:8px;
-      margin-bottom:10px;
+      gap:6px;
+      margin-bottom:6px;
+    }
+    body.quiz-active .step-days-card .scope-presets .meal-action-btn{
+      min-height:34px;
+      padding:6px 8px;
+      font-size:0.82rem;
     }
     body.quiz-active .step-days-card .week-selector{
-      grid-template-columns:repeat(2, minmax(0, 1fr));
-      gap:8px;
-      margin-bottom:12px;
+      grid-template-columns:repeat(4, minmax(0, 1fr));
+      gap:6px;
+      margin-bottom:6px;
     }
     body.quiz-active .step-days-card .day-cell{
-      min-height:42px;
-      padding:8px 10px;
+      min-height:34px;
+      padding:6px 8px;
+      gap:5px;
+      font-size:0.82rem;
+      border-radius:10px;
+    }
+    body.quiz-active .step-days-card .day-cell:first-child,
+    body.quiz-active .step-days-card .day-cell:last-child{
+      border-radius:10px;
+    }
+    body.quiz-active .step-days-card .day-cell-check{
+      width:10px;
+      font-size:0.72rem;
+    }
+    body.quiz-active .step-days-card .quiz-step-label{
+      font-size:0.68rem;
+      margin-bottom:4px;
     }
     body.quiz-active .step-days-card .meal-selector{
       grid-template-columns:repeat(3, minmax(0, 1fr));
-      gap:8px;
+      gap:6px;
+      margin-bottom:0;
     }
     body.quiz-active .step-days-card .meal-selector .option{
-      min-height:42px;
-      padding:8px 6px;
+      min-height:36px;
+      padding:6px 5px;
+      font-size:0.74rem;
+      border-radius:10px;
+      line-height:1.05;
+    }
+  }
+
+  @media (max-width: 380px){
+    body.quiz-active .step-days-card{
+      padding:10px;
+    }
+    body.quiz-active .step-days-card .quiz-inline-progress{
+      margin-bottom:8px;
+    }
+    body.quiz-active .step-days-card .quiz-inline-progress-text{
+      font-size:0.7rem;
+      margin-bottom:5px;
+    }
+    body.quiz-active .step-days-card h3{
+      font-size:1.2rem;
+      margin-bottom:5px;
+    }
+    body.quiz-active .step-days-card .quiz-body > p,
+    body.quiz-active .step-days-card .scope-controls > p{
       font-size:0.82rem;
+      margin-bottom:6px !important;
+    }
+    body.quiz-active .step-days-card .day-cell{
+      min-height:30px;
+      padding:5px 6px;
+      font-size:0.76rem;
+    }
+    body.quiz-active .step-days-card .meal-selector .option{
+      min-height:34px;
+      font-size:0.7rem;
     }
   }
 
