@@ -6,6 +6,7 @@
 <title>Matval — Hvað á ég að borða þessa viku?</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="icon" type="image/x-icon" href="/public/logo_cropped.png">
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght,SOFT,WONK@9..144,400..800,50..100,0..1&family=Instrument+Sans:wght@400;500;600;700&display=swap');
 
@@ -240,6 +241,55 @@
     height:28px;
     object-fit:contain;
     flex-shrink:0;
+  }
+  .scope-controls{ display:grid; gap:16px; }
+  .scope-presets{ display:flex; gap:8px; flex-wrap:wrap; }
+  .weekly-selector{
+    display:grid;
+    grid-template-columns:repeat(7, minmax(0, 1fr));
+    border:1px solid var(--line);
+    border-radius:12px;
+    overflow:hidden;
+    background:var(--paper);
+  }
+  .day-segment{
+    min-height:58px;
+    border:0;
+    border-right:1px solid var(--line);
+    background:transparent;
+    color:var(--ink);
+    font-family:var(--font-body);
+    font-weight:600;
+    cursor:pointer;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    justify-content:center;
+    gap:4px;
+    transition:background .15s ease, color .15s ease, box-shadow .15s ease;
+  }
+  .day-segment:last-child{ border-right:0; }
+  .day-segment-check{
+    height:16px;
+    line-height:16px;
+    font-size:0.78rem;
+    color:transparent;
+  }
+  .day-segment.selected{
+    background:rgba(63,93,69,0.1);
+    color:var(--moss-dark);
+    box-shadow:inset 0 0 0 1px var(--moss);
+  }
+  .day-segment.selected .day-segment-check{ color:var(--moss); }
+  .meal-selector{
+    display:grid;
+    grid-template-columns:repeat(3, minmax(0, 1fr));
+    gap:8px;
+  }
+  .scope-helper{
+    color:var(--muted);
+    font-size:0.84rem;
+    margin:10px 0 0;
   }
 
   .quiz-nav{ display:flex; justify-content:space-between; margin-top: 28px; align-items:center; }
@@ -557,6 +607,31 @@
     }
     .quiz-step-label{ font-size:0.72rem; margin-bottom:4px; }
     .quiz-card h3{ font-size:1.16rem; line-height:1.16; margin-bottom:9px; }
+    .scope-controls{ gap:10px; }
+    .scope-presets{ display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:6px; }
+    .scope-presets .meal-action-btn{ width:100%; min-height:34px; }
+    .weekly-selector{
+      grid-template-columns:repeat(2, minmax(0, 1fr));
+      border-radius:10px;
+      overflow:visible;
+      border:0;
+      gap:6px;
+      background:transparent;
+    }
+    .day-segment{
+      min-height:42px;
+      border:1px solid var(--line);
+      border-radius:9px;
+      flex-direction:row;
+      gap:7px;
+      justify-content:center;
+      background:var(--paper);
+      font-size:0.86rem;
+    }
+    .day-segment:last-child{ border-right:1px solid var(--line); }
+    .day-segment-check{ width:14px; height:auto; line-height:1; }
+    .meal-selector{ grid-template-columns:1fr; gap:6px; }
+    .scope-helper{ font-size:0.78rem; margin-top:7px; }
     .quiz-card p,
     .quiz-body > p{
       margin-top:0 !important;

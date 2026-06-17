@@ -138,6 +138,8 @@ const state = {
   pantry: [],
   foodDislikes: loadFoodDislikes(),
   plan: null,
+  currentView: "home",
+  homeFresh: true,
   pricingStatus: "idle",
   pricingError: null,
   replacementMessage: null,
@@ -217,11 +219,39 @@ function navigateToStep(step) {
     ? (state.step + 1) / totalSteps
     : state.currentProgressRatio || 0;
   state.step = step;
+  state.currentView = step === -1 ? "home" : step === 7 ? "results" : step === 8 ? "savedPlans" : "quiz";
   state.currentProgressRatio = state.step >= 0 && state.step < totalSteps
     ? (state.step + 1) / totalSteps
     : 0;
   render();
   scrollToPageTop();
+}
+
+function resetWizardDefaults() {
+  state.goals = [];
+  state.store = "kronan";
+  state.budget = 18000;
+  state.people = 2;
+  state.days = DEFAULT_SELECTED_DAYS.length;
+  state.selectedDays = [...DEFAULT_SELECTED_DAYS];
+  state.selectedMeals = [...DEFAULT_SELECTED_MEALS];
+  state.pantry = [];
+  state.pricingStatus = "idle";
+  state.pricingError = null;
+  state.replacementMessage = null;
+  state.traceId = null;
+}
+
+function navigateHome({ fresh = true } = {}) {
+  state.homeFresh = fresh;
+  state.currentView = "home";
+  navigateToStep(-1);
+}
+
+function startNewWizard() {
+  resetWizardDefaults();
+  state.homeFresh = false;
+  navigateToStep(0);
 }
 
 // ---------- Plan generation ----------
@@ -1101,6 +1131,7 @@ function openSavedPlan(savedPlanId) {
   state.plan = hydrateSavedPlan(savedPlan);
   refreshPlanTotals(state.plan);
   state.step = 7;
+  state.currentView = "results";
   state.pricingStatus = "idle";
   state.pricingError = null;
   state.replacementMessage = null;
@@ -1152,6 +1183,7 @@ function generateFromSavedPlan(savedPlanId) {
     avoidRecipeIds: recipeIdsInPlanSnapshot(savedPlan),
   });
   state.step = 7;
+  state.currentView = "results";
   state.pricingStatus = "idle";
   state.pricingError = null;
   state.replacementMessage = null;
@@ -1328,7 +1360,7 @@ async function hydrateKronanPrices(plan) {
   state.traceId = traceId;
   state.pricingStatus = "loading";
   state.pricingError = null;
-  renderResults();
+  if (isCurrentResultPlan(plan)) renderResults();
 
   try {
     const ingredients = plan.shoppingList.map((item) => ({
@@ -1375,7 +1407,7 @@ async function hydrateKronanPrices(plan) {
     console.log("[TRACE]", traceId, "finalShoppingListUsedForRender", plan.shoppingList);
     state.pricingStatus = "ready";
     state.pricingError = null;
-    renderResults();
+    if (isCurrentResultPlan(plan)) renderResults();
   } catch (error) {
     console.error("[Main app Krónan] match-products failed:", error);
     if (requestId !== pricingRequest.id) return;
@@ -1398,11 +1430,15 @@ async function hydrateKronanPrices(plan) {
     state.pricingError = "Náði ekki að sækja verð, sýni áætlað verð.";
     console.log("[Main app Krónan] final rendered shopping list:", plan.shoppingList);
     console.log("[TRACE]", traceId, "finalShoppingListUsedForRender", plan.shoppingList);
-    renderResults();
+    if (isCurrentResultPlan(plan)) renderResults();
   }
 }
 
 // ---------- Rendering ----------
+
+function isCurrentResultPlan(plan) {
+  return state.currentView === "results" && state.step === 7 && state.plan === plan;
+}
 
 let app = null;
 
@@ -1433,6 +1469,8 @@ function initApp() {
   runAvoidFoodAssertions();
   runWeeklyPlanningAssertions();
   state.step = -1;
+  state.currentView = "home";
+  state.homeFresh = true;
   render();
   scrollToPageTop();
 }
@@ -1451,7 +1489,7 @@ function render() {
   const homeLogo = document.getElementById("homeLogo");
   if (homeLogo) {
     homeLogo.onclick = () => {
-      navigateToStep(-1);
+      navigateHome({ fresh: true });
     };
   }
   const myPlansNav = document.getElementById("myPlansNav");
@@ -1490,6 +1528,7 @@ function render() {
 }
 
 function renderHero() {
+  const hasCurrentPlan = Boolean(state.plan && !state.plan.error);
   app.innerHTML = `
     <section class="hero">
       <div class="wrap hero-grid">
@@ -1499,6 +1538,7 @@ function renderHero() {
           <p class="lead">Veldu budget, verslun og markmið. Fáðu tilbúinn vikumatseðil, uppskriftir og innkaupalista með áætluðu verði — áður en þú ferð út í búð.</p>
           <div class="cta-row">
             <button class="btn" id="startBtn">Búa til matarplan</button>
+            ${hasCurrentPlan ? `<button class="btn secondary" id="lastPlanBtn">Skoða síðasta plan</button>` : ""}
             <button class="btn ghost" id="learnBtn">Hvernig virkar þetta?</button>
           </div>
           <div class="hero-note">Tekur um 1 mínútu. Engin skráning nauðsynleg til að prófa.</div>
@@ -1536,7 +1576,11 @@ function renderHero() {
       </div>
     </section>
   `;
-  document.getElementById("startBtn").onclick = () => { navigateToStep(0); };
+  document.getElementById("startBtn").onclick = () => { startNewWizard(); };
+  const lastPlanBtn = document.getElementById("lastPlanBtn");
+  if (lastPlanBtn) {
+    lastPlanBtn.onclick = () => { navigateToStep(7); };
+  }
   document.getElementById("learnBtn").onclick = () => {
     document.querySelector("section.alt").scrollIntoView({ behavior: "smooth" });
   };
@@ -1582,7 +1626,8 @@ function quizShell(stepLabel, title, bodyHtml, { nextLabel = "Áfram", nextDisab
     });
   }
   document.getElementById("backBtn").onclick = () => {
-    navigateToStep(state.step === 0 ? -1 : state.step - 1);
+    if (state.step === 0) navigateHome({ fresh: true });
+    else navigateToStep(state.step - 1);
   };
 }
 
@@ -1693,25 +1738,31 @@ function renderDaysStep() {
   const selectedDays = normalizeSelectedDays(state.selectedDays);
   const selectedMeals = normalizeSelectedMeals(state.selectedMeals);
   const body = `
-    <p style="color:var(--muted); margin-bottom:12px;">Veldu dagana og máltíðirnar sem þú vilt fá í planinu.</p>
-    <div class="pantry-suggestions" style="margin-bottom:12px;">
-      <button class="meal-action-btn" type="button" data-day-preset="weekdays">Virkir dagar</button>
-      <button class="meal-action-btn" type="button" data-day-preset="all">Öll vikan</button>
-    </div>
-    <div class="option-grid" style="margin-bottom:18px;">
-      ${WEEK_DAYS.map((day) => `
-        <div class="option ${selectedDays.includes(day.id) ? "selected" : ""}" data-day="${day.id}" style="justify-content:center;">
-          ${day.short}
+    <div class="scope-controls">
+      <p style="color:var(--muted); margin:0;">Veldu dagana og máltíðirnar sem þú vilt fá í planinu.</p>
+      <div class="scope-presets">
+        <button class="meal-action-btn" type="button" data-day-preset="weekdays">Virkir dagar</button>
+        <button class="meal-action-btn" type="button" data-day-preset="all">Öll vikan</button>
+      </div>
+      <div class="weekly-selector" role="group" aria-label="Veldu daga">
+        ${WEEK_DAYS.map((day) => `
+          <button class="day-segment ${selectedDays.includes(day.id) ? "selected" : ""}" type="button" data-day="${day.id}" aria-pressed="${selectedDays.includes(day.id)}">
+            <span class="day-segment-check">✓</span>
+            <span>${day.short}</span>
+          </button>
+        `).join("")}
+      </div>
+      <div>
+        <div class="quiz-step-label">Máltíðir</div>
+        <div class="meal-selector">
+          ${MEAL_OPTIONS.map((meal) => `
+            <div class="option ${selectedMeals.includes(meal.id) ? "selected" : ""}" data-meal="${meal.id}" style="justify-content:center;">
+              ${meal.label}
+            </div>
+          `).join("")}
         </div>
-      `).join("")}
-    </div>
-    <div class="quiz-step-label">Máltíðir</div>
-    <div class="option-grid">
-      ${MEAL_OPTIONS.map((meal) => `
-        <div class="option ${selectedMeals.includes(meal.id) ? "selected" : ""}" data-meal="${meal.id}" style="justify-content:center;">
-          ${meal.label}
-        </div>
-      `).join("")}
+        <p class="scope-helper">Innkaupalistinn verður aðeins reiknaður út frá völdum dögum og máltíðum.</p>
+      </div>
     </div>
     <p id="scopeError" style="color:var(--rust); font-weight:600; min-height:1.2em; margin:12px 0 0;"></p>
   `;
@@ -1722,7 +1773,9 @@ function renderDaysStep() {
     state.selectedMeals = normalizeSelectedMeals(state.selectedMeals);
     state.days = state.selectedDays.length;
     document.querySelectorAll("[data-day]").forEach((el) => {
-      el.classList.toggle("selected", state.selectedDays.includes(el.dataset.day));
+      const selected = state.selectedDays.includes(el.dataset.day);
+      el.classList.toggle("selected", selected);
+      el.setAttribute("aria-pressed", String(selected));
     });
     document.querySelectorAll("[data-meal]").forEach((el) => {
       el.classList.toggle("selected", state.selectedMeals.includes(el.dataset.meal));
@@ -1886,6 +1939,7 @@ function renderDislikesStep() {
     saveFoodDislikes();
     state.plan = generatePlan();
     state.step = 7;
+    state.currentView = "results";
     state.pricingStatus = "idle";
     state.pricingError = null;
     state.replacementMessage = null;
@@ -1966,7 +2020,7 @@ function renderMyPlans() {
     navigateToStep(state.plan ? 7 : -1);
   };
   document.getElementById("newPlanBtn").onclick = () => {
-    navigateToStep(0);
+    startNewWizard();
   };
   document.querySelectorAll("[data-open-plan]").forEach((el) => {
     el.onclick = () => openSavedPlan(el.dataset.openPlan);
