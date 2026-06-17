@@ -698,9 +698,9 @@
       display:flex;
       flex-direction:column;
       width:100%;
-      max-height:calc(100svh - 154px);
-      max-height:calc(100dvh - 154px);
-      padding:16px 14px;
+      max-height:calc(100svh - 150px);
+      max-height:calc(100dvh - 150px);
+      padding:18px 14px;
       border-radius:10px;
       overflow:hidden;
     }
@@ -708,35 +708,73 @@
       min-height:0;
       overflow-y:auto;
       -webkit-overflow-scrolling:touch;
-      padding-bottom:4px;
+      padding-bottom:110px;
     }
     .quiz-step-label{ font-size:0.72rem; margin-bottom:4px; }
     .quiz-card h3{ font-size:1.16rem; line-height:1.16; margin-bottom:9px; }
-    .scope-controls{ gap:10px; }
-    .scope-presets{ display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:6px; }
-    .scope-presets .meal-action-btn{ width:100%; min-height:34px; }
+    .scope-controls{ gap:12px; }
+    .scope-presets{ display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:8px; }
+    .scope-presets .meal-action-btn{
+      width:100%;
+      min-height:40px;
+      padding:9px 10px;
+      font-size:0.9rem;
+    }
     .week-selector{
+      display:grid;
       grid-template-columns:repeat(2, minmax(0, 1fr));
       border:0;
       border-radius:0;
       overflow:visible;
-      gap:6px;
+      gap:8px;
       background:transparent;
     }
     .day-cell{
-      min-height:42px;
+      min-height:46px;
+      width:100%;
       border:1px solid var(--line);
-      border-radius:9px;
-      flex-direction:row;
-      gap:7px;
-      justify-content:center;
+      border-right:1px solid var(--line);
+      border-radius:12px;
       background:var(--paper);
-      font-size:0.86rem;
+      flex-direction:row;
+      justify-content:center;
+      align-items:center;
+      gap:8px;
+      padding:10px 12px;
+      font-size:0.95rem;
+    }
+    .day-cell:first-child,
+    .day-cell:last-child{
+      border-radius:12px;
+    }
+    .day-cell.selected{
+      border-color:var(--moss);
+      background:rgba(63, 93, 69, 0.10);
+      color:var(--moss-dark);
     }
     .day-cell:last-child{ border-right:1px solid var(--line); }
-    .day-cell-check{ width:14px; height:auto; line-height:1; }
-    .meal-selector{ grid-template-columns:1fr; gap:6px; }
-    .scope-helper{ font-size:0.78rem; margin-top:7px; }
+    .day-cell-check{
+      width:16px;
+      height:auto;
+      line-height:1;
+      font-size:0.85rem;
+    }
+    .meal-selector{
+      display:grid;
+      grid-template-columns:1fr;
+      gap:8px;
+    }
+    .meal-selector .option,
+    .meal-selector .day-cell,
+    .meal-selector button{
+      min-height:48px;
+      width:100%;
+    }
+    .scope-helper{
+      font-size:0.8rem;
+      line-height:1.35;
+      margin-top:8px;
+    }
     .quiz-card p,
     .quiz-body > p{
       margin-top:0 !important;
