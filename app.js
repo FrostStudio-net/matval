@@ -122,6 +122,7 @@ const state = {
   plan: null,
   pricingStatus: "idle",
   pricingError: null,
+  replacementMessage: null,
   traceId: null,
 };
 
@@ -751,26 +752,48 @@ function replacementScore(candidate, currentRecipe, slot, goals, pantry, people)
   return score;
 }
 
+function replacementSlotKey(dayIndex, slot) {
+  return `${dayIndex}:${slot}`;
+}
+
+function replacementHistoryForSlot(plan, dayIndex, slot) {
+  if (!plan.replacementHistoryBySlot || typeof plan.replacementHistoryBySlot !== "object") {
+    plan.replacementHistoryBySlot = {};
+  }
+  const slotKey = replacementSlotKey(dayIndex, slot);
+  if (!Array.isArray(plan.replacementHistoryBySlot[slotKey])) {
+    plan.replacementHistoryBySlot[slotKey] = [];
+  }
+  return plan.replacementHistoryBySlot[slotKey];
+}
+
 function findReplacementRecipe(plan, dayIndex, slot) {
   const meal = plan.days[dayIndex][slot];
   const currentRecipe = meal.recipe;
   const recipeCounts = countRecipesInPlan(plan);
-  const replacedRecipeIds = new Set(plan.replacedRecipeIds || []);
-  const pool = replacementPoolForSlot(slot, plan, dayIndex)
+  const slotHistory = replacementHistoryForSlot(plan, dayIndex, slot);
+  const slotHistoryIds = new Set(slotHistory);
+  const softReplacedRecipeIds = new Set(plan.replacedRecipeIds || []);
+  const basePool = replacementPoolForSlot(slot, plan, dayIndex)
     .filter((recipe) => recipe.id !== currentRecipe.id)
-    .filter((recipe) => !replacedRecipeIds.has(recipe.id))
-    .filter((recipe) => leftoverRecipeAllowedForGoals(recipe, state.goals))
-    .filter((recipe) => (recipeCounts[recipe.id] || 0) < 2);
-
-  const fallbackPool = replacementPoolForSlot(slot, plan, dayIndex)
-    .filter((recipe) => recipe.id !== currentRecipe.id)
-    .filter((recipe) => !replacedRecipeIds.has(recipe.id))
     .filter((recipe) => leftoverRecipeAllowedForGoals(recipe, state.goals));
 
-  const candidates = (pool.length ? pool : fallbackPool)
+  const limitedPool = basePool.filter((recipe) => (recipeCounts[recipe.id] || 0) < 2);
+  const preferredPool = limitedPool.length ? limitedPool : basePool;
+  let candidatePool = preferredPool.filter((recipe) => !slotHistoryIds.has(recipe.id));
+  let resetHistory = false;
+
+  if (!candidatePool.length && slotHistory.length) {
+    plan.replacementHistoryBySlot[replacementSlotKey(dayIndex, slot)] = [];
+    candidatePool = preferredPool;
+    resetHistory = true;
+  }
+
+  const candidates = candidatePool
     .map((recipe) => ({
       recipe,
-      score: replacementScore(recipe, currentRecipe, slot, state.goals, state.pantry, state.people),
+      score: replacementScore(recipe, currentRecipe, slot, state.goals, state.pantry, state.people)
+        - (softReplacedRecipeIds.has(recipe.id) ? 5 : 0),
     }))
     .sort((a, b) => b.score - a.score);
 
@@ -778,6 +801,8 @@ function findReplacementRecipe(plan, dayIndex, slot) {
     dayIndex,
     slot,
     currentRecipe: currentRecipe.id,
+    slotHistory,
+    resetHistory,
     candidates: candidates.slice(0, 8).map((candidate) => ({
       id: candidate.recipe.id,
       score: Math.round(candidate.score),
@@ -811,10 +836,15 @@ function replaceMeal(dayIndex, slot) {
   const replacement = findReplacementRecipe(plan, dayIndex, slot);
   if (!replacement) {
     console.warn("[Meal replacement] no replacement found", { dayIndex, slot, currentRecipe: currentRecipe.id });
+    state.replacementMessage = "Engin önnur uppskrift fannst fyrir þessa máltíð.";
+    renderResults();
     return;
   }
 
-  plan.replacedRecipeIds = [...new Set([...(plan.replacedRecipeIds || []), currentRecipe.id])];
+  const slotHistory = replacementHistoryForSlot(plan, dayIndex, slot);
+  slotHistory.push(replacement.id);
+  plan.replacementHistoryBySlot[replacementSlotKey(dayIndex, slot)] = [...new Set(slotHistory)];
+  plan.replacedRecipeIds = [...new Set([...(plan.replacedRecipeIds || []), replacement.id])];
   plan.days[dayIndex][slot] = {
     recipe: replacement,
     leftover: Boolean(replacement.usesLeftovers),
@@ -832,6 +862,7 @@ function replaceMeal(dayIndex, slot) {
   }
 
   refreshPlanTotals(plan);
+  state.replacementMessage = null;
   state.pricingStatus = "idle";
   state.pricingError = null;
   renderResults();
@@ -973,6 +1004,7 @@ function hydrateSavedPlan(savedPlan) {
     weeklyStructure: null,
     weeklyScore: null,
     replacedRecipeIds: [],
+    replacementHistoryBySlot: {},
     nutritionTotals: savedPlan.nutritionTotals || nutritionTotals(days),
     savedPlanId: savedPlan.id,
   };
@@ -999,11 +1031,14 @@ function openSavedPlan(savedPlanId) {
   state.people = savedPlan.people || state.people;
   state.days = savedPlan.days || state.days;
   state.plan = hydrateSavedPlan(savedPlan);
+  refreshPlanTotals(state.plan);
   state.step = 7;
   state.pricingStatus = "idle";
   state.pricingError = null;
+  state.replacementMessage = null;
   render();
   scrollToPageTop();
+  hydrateKronanPrices(state.plan);
 }
 
 function duplicateSavedPlan(savedPlanId) {
@@ -1048,6 +1083,8 @@ function generateFromSavedPlan(savedPlanId) {
   state.step = 7;
   state.pricingStatus = "idle";
   state.pricingError = null;
+  state.replacementMessage = null;
+  console.log("[PRICE FLOW] plan generated", state.plan.shoppingList);
   render();
   scrollToPageTop();
   hydrateKronanPrices(state.plan);
@@ -1153,6 +1190,7 @@ function generatePlan(options = {}) {
     weeklyStructure: structure,
     weeklyScore: best.score,
     replacedRecipeIds: [],
+    replacementHistoryBySlot: {},
     nutritionTotals: nutritionTotals(best.days),
   };
   const validation = validatePlan(plan, goals);
@@ -1225,6 +1263,7 @@ async function hydrateKronanPrices(plan) {
     console.log("[TRACE]", traceId, "rawShoppingListBeforeMatching", plan.shoppingList);
     console.log("[Main app Krónan] selected store:", state.store);
     console.log("[Main app Krónan] ingredients sent to /api/kronan-match-products:", ingredients);
+    console.log("[PRICE FLOW] hydrating with Kronan");
     const payload = {
       traceId,
       goals: state.goals,
@@ -1241,6 +1280,7 @@ async function hydrateKronanPrices(plan) {
     if (!response.ok) throw new Error("Kronan match-products request failed");
 
     const data = await response.json();
+    console.log("[PRICE FLOW] hydrated items", data.items);
     console.log("[Main app Krónan] exact /api/kronan-match-products response:", data);
     console.log("[TRACE]", traceId, "match-products response", data);
     if (requestId !== pricingRequest.id) return;
@@ -1699,6 +1739,8 @@ function renderDislikesStep() {
     state.step = 7;
     state.pricingStatus = "idle";
     state.pricingError = null;
+    state.replacementMessage = null;
+    console.log("[PRICE FLOW] plan generated", state.plan.shoppingList);
     render();
     scrollToPageTop();
     hydrateKronanPrices(state.plan);
@@ -1820,6 +1862,7 @@ function renderResults() {
     : state.pricingStatus === "error"
       ? "Náði ekki að sækja verð, sýni áætlað verð."
       : null;
+  const replacementMessage = state.replacementMessage;
   const shoppingDisplayName = (item) => {
     if (item.source === "kronan" && item.isEstimated === false) {
       return item.matchedProductName || item.productName || item.nameFromStore || item.name || "Vara";
@@ -1883,7 +1926,7 @@ function renderResults() {
           <button class="btn ghost" id="myPlansBtn">Mín plön</button>
           <button class="btn" id="savePlanBtn">Vista plan</button>
         </div>
-        <button class="btn secondary result-regen" id="regenBtn" style="display:none;">Endurnýja plan</button>
+        ${replacementMessage ? `<div class="budget-note" style="margin:10px 0 16px;">${escapeHtml(replacementMessage)}</div>` : ""}
 
         <div class="results-summary">
           <div>
@@ -1911,6 +1954,7 @@ function renderResults() {
             <div class="shopping-list">
               <h3>Innkaupalisti — Krónan</h3>
               <div class="shopping-source-note">Verð sótt frá Krónunni þegar hægt er.</div>
+              <button class="meal-action-btn" id="refreshPricesBtn" style="margin:8px 0 12px;">Uppfæra verð</button>
               ${pricingMessage ? `<div class="budget-note" style="margin-bottom:10px;">${pricingMessage}</div>` : ""}
               ${groupedShoppingList.map((group) => `
                 <div class="shopping-group">
@@ -1965,13 +2009,12 @@ function renderResults() {
       navigateToStep(8);
     }
   };
-  document.getElementById("regenBtn").onclick = () => {
-    // shuffle by rotating recipe order slightly: simplest is to re-run generation with a small random seed effect
-    state.plan = generatePlan();
+  document.getElementById("refreshPricesBtn").onclick = () => {
+    if (!state.plan || state.plan.error) return;
+    refreshPlanTotals(state.plan);
     state.pricingStatus = "idle";
     state.pricingError = null;
-    renderResults();
-    scrollToPageTop();
+    state.replacementMessage = null;
     hydrateKronanPrices(state.plan);
   };
   document.querySelectorAll("[data-recipe]").forEach((el) => {
