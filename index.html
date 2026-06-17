@@ -819,13 +819,24 @@
   }
 
   @media (max-width: 700px){
-    .step-days-card{
-      padding:14px 14px 0;
-      max-height:calc(100svh - 148px);
-      max-height:calc(100dvh - 148px);
+    .quiz-section{
+      padding-bottom:calc(96px + env(safe-area-inset-bottom));
     }
-    .step-days-card .quiz-body{
-      padding-bottom:140px;
+    body{
+      overscroll-behavior-y:none;
+    }
+    .step-days-card{
+      max-height:none !important;
+      height:auto !important;
+      overflow:visible !important;
+      padding:14px 14px 18px;
+    }
+    .step-days-card .quiz-body,
+    .step-days-body{
+      max-height:none !important;
+      height:auto !important;
+      overflow:visible !important;
+      padding-bottom:0 !important;
     }
     .step-days-card .quiz-inline-progress{
       margin-bottom:12px;
@@ -835,15 +846,15 @@
       margin-bottom:8px;
     }
     .step-days-card h3{
-      font-size:1.55rem;
+      font-size:1.45rem;
       line-height:1.08;
       margin-bottom:8px;
     }
     .step-days-card .quiz-body > p,
     .step-days-card .scope-controls > p{
-      font-size:0.98rem;
-      line-height:1.28;
-      margin-bottom:10px !important;
+      font-size:0.95rem;
+      line-height:1.25;
+      margin-bottom:12px !important;
     }
     .step-days-card .scope-controls{
       gap:10px;
@@ -852,7 +863,7 @@
       display:grid;
       grid-template-columns:repeat(2, minmax(0, 1fr));
       gap:8px;
-      margin-bottom:0;
+      margin-bottom:10px;
     }
     .step-days-card .scope-presets .meal-action-btn{
       min-height:42px;
@@ -868,7 +879,7 @@
       border-radius:0;
       overflow:visible;
       background:transparent;
-      margin-bottom:2px;
+      margin-bottom:12px;
     }
     .step-days-card .day-cell{
       min-height:44px;
@@ -902,7 +913,7 @@
     .step-days-card .meal-selector{
       display:grid;
       grid-template-columns:repeat(3, minmax(0, 1fr));
-      gap:6px;
+      gap:8px;
       margin-bottom:8px;
     }
     .step-days-card .meal-selector .option{
