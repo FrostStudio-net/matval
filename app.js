@@ -33,10 +33,24 @@ const PEOPLE_OPTIONS = [
   { id: 4, label: "Fjölskylda (3–5 manns)" },
 ];
 
-const DAY_OPTIONS = [3, 5, 7];
-
-const DAY_NAMES = ["Mánudagur", "Þriðjudagur", "Miðvikudagur", "Fimmtudagur", "Föstudagur", "Laugardagur", "Sunnudagur"];
-const STEP_LABELS = ["Markmið", "Verslun", "Kostnaður", "Fólk", "Dagar", "Til heima", "Forðast"];
+const WEEK_DAYS = [
+  { id: "mon", short: "Mán", name: "Mánudagur" },
+  { id: "tue", short: "Þri", name: "Þriðjudagur" },
+  { id: "wed", short: "Mið", name: "Miðvikudagur" },
+  { id: "thu", short: "Fim", name: "Fimmtudagur" },
+  { id: "fri", short: "Fös", name: "Föstudagur" },
+  { id: "sat", short: "Lau", name: "Laugardagur" },
+  { id: "sun", short: "Sun", name: "Sunnudagur" },
+];
+const DEFAULT_SELECTED_DAYS = ["mon", "tue", "wed", "thu", "fri"];
+const MEAL_OPTIONS = [
+  { id: "morgunmatur", label: "Morgunmatur" },
+  { id: "hádegismatur", label: "Hádegismatur" },
+  { id: "kvöldmatur", label: "Kvöldmatur" },
+];
+const DEFAULT_SELECTED_MEALS = MEAL_OPTIONS.map((meal) => meal.id);
+const DAY_NAMES = WEEK_DAYS.map((day) => day.name);
+const STEP_LABELS = ["Markmið", "Verslun", "Kostnaður", "Fólk", "Dagar og máltíðir", "Til heima", "Forðast"];
 
 const PANTRY_SUGGESTIONS = ["oats", "rice", "pasta", "eggs", "chicken_breast", "tuna", "oil", "milk", "oatmilk", "garlic", "onion"];
 const FOOD_DISLIKES_STORAGE_KEY = "matval.foodDislikes.v1";
@@ -117,6 +131,8 @@ const state = {
   budget: 18000,
   people: 2,
   days: 5,
+  selectedDays: [...DEFAULT_SELECTED_DAYS],
+  selectedMeals: [...DEFAULT_SELECTED_MEALS],
   pantry: [],
   foodDislikes: loadFoodDislikes(),
   plan: null,
@@ -142,6 +158,37 @@ function escapeHtml(value) {
 
 function createTraceId() {
   return `trace-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+function normalizeSelectedDays(days) {
+  const valid = new Set(WEEK_DAYS.map((day) => day.id));
+  const normalized = (Array.isArray(days) ? days : DEFAULT_SELECTED_DAYS).filter((day) => valid.has(day));
+  return normalized.length ? [...new Set(normalized)] : [...DEFAULT_SELECTED_DAYS];
+}
+
+function normalizeSelectedMeals(meals) {
+  const valid = new Set(MEAL_OPTIONS.map((meal) => meal.id));
+  const normalized = (Array.isArray(meals) ? meals : DEFAULT_SELECTED_MEALS).filter((meal) => valid.has(meal));
+  return normalized.length ? [...new Set(normalized)] : [...DEFAULT_SELECTED_MEALS];
+}
+
+function mealSlotsForPlan(planOrOptions = {}) {
+  return normalizeSelectedMeals(planOrOptions.selectedMeals || state.selectedMeals);
+}
+
+function mealLabel(slot) {
+  return MEAL_OPTIONS.find((meal) => meal.id === slot)?.label || slot;
+}
+
+function mealScopeLabel(selectedMeals = state.selectedMeals, compact = false) {
+  const meals = normalizeSelectedMeals(selectedMeals);
+  if (compact) return `${meals.length} ${meals.length === 1 ? "máltíð" : "máltíðir"}/dag`;
+  return meals.map((meal) => mealLabel(meal).toLocaleLowerCase("is-IS")).join(" + ");
+}
+
+function dayNameForPlanDay(plan, index) {
+  const dayId = normalizeSelectedDays(plan.selectedDays)[index];
+  return WEEK_DAYS.find((day) => day.id === dayId)?.name || DAY_NAMES[index] || `Dagur ${index + 1}`;
 }
 
 function clearInteractionState() {
@@ -370,18 +417,21 @@ function markRecipeUsed(recipe, usageCounts) {
   usageCounts[recipe.id] = (usageCounts[recipe.id] || 0) + 1;
 }
 
-function buildWeeklyStructure(goals, days) {
+function buildWeeklyStructure(goals, days, selectedMeals = DEFAULT_SELECTED_MEALS) {
   const vegan = selectedGoal(goals, "vegan");
   const vegetarian = selectedGoal(goals, "vegetarian");
   const cheap = selectedGoal(goals, "cheap");
   const highProtein = selectedGoal(goals, "high_protein", "protein", "muscle_gain");
   const quick = selectedGoal(goals, "quick");
+  const meals = normalizeSelectedMeals(selectedMeals);
+  const plansLunch = meals.includes("hádegismatur");
+  const plansDinner = meals.includes("kvöldmatur");
 
   const targets = {
-    fishMeals: vegan || vegetarian ? 0 : days >= 5 ? 1 : 0,
-    chickenMeals: vegan || vegetarian ? 0 : highProtein ? Math.min(2, days) : days >= 5 ? 1 : 0,
-    vegetarianMeals: vegan || vegetarian ? days : Math.max(1, Math.round(days * (cheap ? 0.45 : 0.3))),
-    leftoverLunches: days >= 5 ? (cheap || quick ? 2 : 1) : days >= 3 ? 1 : 0,
+    fishMeals: !plansDinner || vegan || vegetarian ? 0 : days >= 5 ? 1 : 0,
+    chickenMeals: !plansDinner || vegan || vegetarian ? 0 : highProtein ? Math.min(2, days) : days >= 5 ? 1 : 0,
+    vegetarianMeals: !plansDinner ? 0 : vegan || vegetarian ? days : Math.max(1, Math.round(days * (cheap ? 0.45 : 0.3))),
+    leftoverLunches: plansLunch && plansDinner ? days >= 5 ? (cheap || quick ? 2 : 1) : days >= 3 ? 1 : 0 : 0,
   };
 
   return {
@@ -490,6 +540,10 @@ function addMealToContext(recipe, context, slot, isLeftover = false) {
 }
 
 function buildCandidateWeek(structure, pools, options) {
+  const selectedMeals = normalizeSelectedMeals(options.selectedMeals);
+  const plansBreakfast = selectedMeals.includes("morgunmatur");
+  const plansLunch = selectedMeals.includes("hádegismatur");
+  const plansDinner = selectedMeals.includes("kvöldmatur");
   const context = {
     attempt: options.attempt,
     goals: options.goals,
@@ -511,38 +565,46 @@ function buildCandidateWeek(structure, pools, options) {
   for (let i = 0; i < options.days; i++) {
     context.dayIndex = i;
     const dayMeals = {};
+    const usedRecipeIds = new Set();
 
-    const breakfast = selectWeeklyRecipe(pools.morgunmatur, "morgunmatur", context, structure);
-    if (!breakfast) return null;
-    dayMeals.morgunmatur = { recipe: breakfast, leftover: false };
-    addMealToContext(breakfast, context, "morgunmatur");
+    if (plansBreakfast) {
+      const breakfast = selectWeeklyRecipe(pools.morgunmatur, "morgunmatur", context, structure);
+      if (!breakfast) return null;
+      dayMeals.morgunmatur = { recipe: breakfast, leftover: false };
+      usedRecipeIds.add(breakfast.id);
+      addMealToContext(breakfast, context, "morgunmatur");
+    }
 
-    if (leftoverMap[i] && context.leftoverLunches < structure.targets.leftoverLunches && (context.recipeCounts[leftoverMap[i].id] || 0) < 2) {
+    if (plansLunch && leftoverMap[i] && context.leftoverLunches < structure.targets.leftoverLunches && (context.recipeCounts[leftoverMap[i].id] || 0) < 2) {
       dayMeals.hádegismatur = {
         recipe: leftoverMap[i],
         leftover: true,
         fromDinner: true,
         sourceRecipeId: leftoverMap[i].usesLeftovers || leftoverMap[i].id,
       };
+      usedRecipeIds.add(leftoverMap[i].id);
       addMealToContext(leftoverMap[i], context, "hádegismatur", true);
-    } else {
+    } else if (plansLunch) {
       const lunch = selectWeeklyRecipe(pools.hádegismatur, "hádegismatur", context, structure, {
-        blockedIds: new Set([breakfast.id]),
+        blockedIds: usedRecipeIds,
       });
       if (!lunch) return null;
       dayMeals.hádegismatur = { recipe: lunch, leftover: false };
+      usedRecipeIds.add(lunch.id);
       addMealToContext(lunch, context, "hádegismatur");
     }
 
-    const dinner = selectWeeklyRecipe(pools.kvöldmatur, "kvöldmatur", context, structure, {
-      blockedIds: new Set([breakfast.id, dayMeals.hádegismatur.recipe.id]),
-    });
-    if (!dinner) return null;
-    dayMeals.kvöldmatur = { recipe: dinner, leftover: false };
-    addMealToContext(dinner, context, "kvöldmatur");
+    if (plansDinner) {
+      const dinner = selectWeeklyRecipe(pools.kvöldmatur, "kvöldmatur", context, structure, {
+        blockedIds: usedRecipeIds,
+      });
+      if (!dinner) return null;
+      dayMeals.kvöldmatur = { recipe: dinner, leftover: false };
+      addMealToContext(dinner, context, "kvöldmatur");
 
-    if (dinner.leftoverFriendly && i + 1 < options.days && context.leftoverLunches < structure.targets.leftoverLunches) {
-      leftoverMap[i + 1] = linkedLeftoverRecipe(dinner, options.leftoverRecipes || []) || dinner;
+      if (plansLunch && dinner.leftoverFriendly && i + 1 < options.days && context.leftoverLunches < structure.targets.leftoverLunches) {
+        leftoverMap[i + 1] = linkedLeftoverRecipe(dinner, options.leftoverRecipes || []) || dinner;
+      }
     }
 
     planDays.push(dayMeals);
@@ -566,12 +628,12 @@ function scoreWholeWeek(planDays, structure, goals, people, pantry, budget) {
   let pastaDinners = 0;
   let bowlStyleDinners = 0;
 
+  let totalMeals = 0;
+
   planDays.forEach((day) => {
-    [
-      ["morgunmatur", day.morgunmatur],
-      ["hádegismatur", day.hádegismatur],
-      ["kvöldmatur", day.kvöldmatur],
-    ].forEach(([slot, meal]) => {
+    Object.entries(day).forEach(([slot, meal]) => {
+      if (!meal || !meal.recipe) return;
+      totalMeals++;
       const recipe = meal.recipe;
       recipeCounts[recipe.id] = (recipeCounts[recipe.id] || 0) + 1;
       score += recipeSlotScore(recipe, slot);
@@ -614,14 +676,13 @@ function scoreWholeWeek(planDays, structure, goals, people, pantry, budget) {
       if (protein !== "none" && streak > 4) score -= (streak - 4) * 80;
     });
 
-    if (day.hádegismatur.leftover && day.hádegismatur.fromDinner) leftoverLunches++;
+    if (day.hádegismatur?.leftover && day.hádegismatur?.fromDinner) leftoverLunches++;
   });
 
   Object.values(recipeCounts).forEach((count) => {
     if (count > 2) score -= (count - 2) * 95;
   });
 
-  const totalMeals = planDays.length * 3;
   if (!selectedGoal(goals, "vegan")) {
     const veganLimit = Math.ceil(totalMeals * 0.45);
     if (veganMeals > veganLimit) score -= (veganMeals - veganLimit) * 28;
@@ -721,7 +782,7 @@ function countRecipesInPlan(plan) {
 }
 
 function replacementPoolForSlot(slot, plan, dayIndex) {
-  const previousDinner = dayIndex > 0 ? plan.days[dayIndex - 1].kvöldmatur.recipe : null;
+  const previousDinner = dayIndex > 0 ? plan.days[dayIndex - 1].kvöldmatur?.recipe : null;
   return APP_RECIPES.filter((recipe) => {
     if (recipe.usesLeftovers) {
       return slot === "hádegismatur" && previousDinner && recipe.usesLeftovers === previousDinner.id;
@@ -951,36 +1012,28 @@ function createPlanSnapshot(plan) {
     budget: state.budget,
     people: plan.people,
     days: plan.numDays,
+    selectedDays: normalizeSelectedDays(plan.selectedDays || state.selectedDays),
+    selectedMeals: normalizeSelectedMeals(plan.selectedMeals || state.selectedMeals),
     totalCost: plan.totalPrice,
     shoppingList: plan.shoppingList,
     nutritionTotals: plan.nutritionTotals || nutritionTotals(plan.days),
-    meals: plan.days.map((day) => ({
-      morgunmatur: {
-        recipeId: day.morgunmatur.recipe.id,
-        leftover: Boolean(day.morgunmatur.leftover),
-        fromDinner: Boolean(day.morgunmatur.fromDinner),
-        sourceRecipeId: day.morgunmatur.sourceRecipeId || null,
-      },
-      hádegismatur: {
-        recipeId: day.hádegismatur.recipe.id,
-        leftover: Boolean(day.hádegismatur.leftover),
-        fromDinner: Boolean(day.hádegismatur.fromDinner),
-        sourceRecipeId: day.hádegismatur.sourceRecipeId || null,
-      },
-      kvöldmatur: {
-        recipeId: day.kvöldmatur.recipe.id,
-        leftover: Boolean(day.kvöldmatur.leftover),
-        fromDinner: Boolean(day.kvöldmatur.fromDinner),
-        sourceRecipeId: day.kvöldmatur.sourceRecipeId || null,
-      },
-    })),
+    meals: plan.days.map((day) => Object.fromEntries(
+      Object.entries(day).map(([slot, meal]) => [slot, {
+        recipeId: meal.recipe.id,
+        leftover: Boolean(meal.leftover),
+        fromDinner: Boolean(meal.fromDinner),
+        sourceRecipeId: meal.sourceRecipeId || null,
+      }])
+    )),
   };
 }
 
 function hydrateSavedPlan(savedPlan) {
+  const selectedMeals = normalizeSelectedMeals(savedPlan.selectedMeals);
+  const selectedDays = normalizeSelectedDays(savedPlan.selectedDays || WEEK_DAYS.slice(0, savedPlan.days || 5).map((day) => day.id));
   const days = (savedPlan.meals || []).map((day) => {
     const hydratedDay = {};
-    ["morgunmatur", "hádegismatur", "kvöldmatur"].forEach((slot) => {
+    selectedMeals.forEach((slot) => {
       const meal = day[slot];
       const recipe = meal && APP_RECIPES.find((candidate) => candidate.id === meal.recipeId);
       if (recipe) {
@@ -993,7 +1046,7 @@ function hydrateSavedPlan(savedPlan) {
       }
     });
     return hydratedDay;
-  }).filter((day) => day.morgunmatur && day.hádegismatur && day.kvöldmatur);
+  }).filter((day) => Object.keys(day).length > 0);
 
   return {
     days,
@@ -1001,6 +1054,8 @@ function hydrateSavedPlan(savedPlan) {
     totalPrice: Number(savedPlan.totalCost || 0),
     people: savedPlan.people || 2,
     numDays: savedPlan.days || days.length,
+    selectedDays,
+    selectedMeals,
     weeklyStructure: null,
     weeklyScore: null,
     replacedRecipeIds: [],
@@ -1029,7 +1084,9 @@ function openSavedPlan(savedPlanId) {
   state.store = savedPlan.store || "kronan";
   state.budget = savedPlan.budget || state.budget;
   state.people = savedPlan.people || state.people;
-  state.days = savedPlan.days || state.days;
+  state.selectedDays = normalizeSelectedDays(savedPlan.selectedDays || WEEK_DAYS.slice(0, savedPlan.days || state.days).map((day) => day.id));
+  state.selectedMeals = normalizeSelectedMeals(savedPlan.selectedMeals);
+  state.days = state.selectedDays.length;
   state.plan = hydrateSavedPlan(savedPlan);
   refreshPlanTotals(state.plan);
   state.step = 7;
@@ -1071,12 +1128,15 @@ function generateFromSavedPlan(savedPlanId) {
   state.store = savedPlan.store || "kronan";
   state.budget = savedPlan.budget || state.budget;
   state.people = savedPlan.people || state.people;
-  state.days = savedPlan.days || state.days;
+  state.selectedDays = normalizeSelectedDays(savedPlan.selectedDays || WEEK_DAYS.slice(0, savedPlan.days || state.days).map((day) => day.id));
+  state.selectedMeals = normalizeSelectedMeals(savedPlan.selectedMeals);
+  state.days = state.selectedDays.length;
   state.plan = generatePlan({
     goals: state.goals,
     pantry: state.pantry,
     people: state.people,
-    days: state.days,
+    selectedDays: state.selectedDays,
+    selectedMeals: state.selectedMeals,
     budget: state.budget,
     avoidRecipeIds: recipeIdsInPlanSnapshot(savedPlan),
   });
@@ -1134,6 +1194,8 @@ function validatePlan(plan, goals) {
 }
 
 function planError(options = {}) {
+  const selectedDays = normalizeSelectedDays(options.selectedDays || (options.days ? WEEK_DAYS.slice(0, options.days).map((day) => day.id) : state.selectedDays));
+  const selectedMeals = normalizeSelectedMeals(options.selectedMeals || state.selectedMeals);
   return {
     error: true,
     message: PLAN_ERROR_MESSAGE,
@@ -1141,14 +1203,18 @@ function planError(options = {}) {
     shoppingList: [],
     totalPrice: 0,
     people: options.people || state.people,
-    numDays: options.days || state.days,
+    numDays: selectedDays.length,
+    selectedDays,
+    selectedMeals,
   };
 }
 
 function generatePlan(options = {}) {
   const goals = options.goals || state.goals;
   const people = options.people || state.people;
-  const days = options.days || state.days;
+  const selectedDays = normalizeSelectedDays(options.selectedDays || (options.days ? WEEK_DAYS.slice(0, options.days).map((day) => day.id) : state.selectedDays));
+  const selectedMeals = normalizeSelectedMeals(options.selectedMeals || state.selectedMeals);
+  const days = selectedDays.length;
   const pantry = options.pantry || state.pantry;
   const budget = options.budget || state.budget;
   const avoidRecipeIds = options.avoidRecipeIds || [];
@@ -1158,27 +1224,27 @@ function generatePlan(options = {}) {
   }
   const eligibleRecipes = APP_RECIPES.filter((recipe) => !recipe.usesLeftovers && recipeAllowedForGoals(recipe, goals));
   const leftoverRecipes = APP_RECIPES.filter((recipe) => recipe.usesLeftovers && leftoverRecipeAllowedForGoals(recipe, goals));
-  const structure = buildWeeklyStructure(goals, days);
+  const structure = buildWeeklyStructure(goals, days, selectedMeals);
   const pools = {
     morgunmatur: sortRecipesForSlot(candidateRecipesForSlot(eligibleRecipes, "morgunmatur"), "morgunmatur", goals, pantry, people),
     hádegismatur: sortRecipesForSlot(candidateRecipesForSlot(eligibleRecipes, "hádegismatur"), "hádegismatur", goals, pantry, people),
     kvöldmatur: sortRecipesForSlot(candidateRecipesForSlot(eligibleRecipes, "kvöldmatur"), "kvöldmatur", goals, pantry, people),
   };
 
-  if (Object.values(pools).some((recipes) => recipes.length === 0)) {
-    return planError({ people, days });
+  if (selectedMeals.some((slot) => pools[slot].length === 0)) {
+    return planError({ people, selectedDays, selectedMeals });
   }
 
   const attempts = Math.max(80, days * 35);
   let best = null;
   for (let attempt = 0; attempt < attempts; attempt++) {
-    const candidateDays = buildCandidateWeek(structure, pools, { attempt, goals, pantry, people, days, leftoverRecipes, avoidRecipeIds });
+    const candidateDays = buildCandidateWeek(structure, pools, { attempt, goals, pantry, people, days, selectedMeals, leftoverRecipes, avoidRecipeIds });
     if (!candidateDays) continue;
     const score = scoreWholeWeek(candidateDays, structure, goals, people, pantry, budget);
     if (!best || score > best.score) best = { days: candidateDays, score };
   }
 
-  if (!best) return planError({ people, days });
+  if (!best) return planError({ people, selectedDays, selectedMeals });
 
   const { shoppingList, totalPrice } = estimateShoppingList(best.days, people, pantry);
   const plan = {
@@ -1187,6 +1253,8 @@ function generatePlan(options = {}) {
     totalPrice,
     people,
     numDays: days,
+    selectedDays,
+    selectedMeals,
     weeklyStructure: structure,
     weeklyScore: best.score,
     replacedRecipeIds: [],
@@ -1196,7 +1264,7 @@ function generatePlan(options = {}) {
   const validation = validatePlan(plan, goals);
   if (!validation.valid) {
     console.warn("[Dietary validation] invalid plan rejected:", validation);
-    return planError({ people, days });
+    return planError({ people, selectedDays, selectedMeals });
   }
 
   return plan;
@@ -1385,7 +1453,7 @@ function render() {
     const s = Number(el.dataset.step);
     el.classList.toggle("active", s === state.step);
   });
-  document.getElementById("stepNav").style.display = state.step <= 6 ? "flex" : "none";
+  document.getElementById("stepNav").style.display = state.step >= 0 && state.step <= 7 ? "flex" : "none";
   const mobileProgress = document.getElementById("mobileStepProgress");
   const mobileStepText = document.getElementById("mobileStepText");
   const mobileStepFill = document.getElementById("mobileStepFill");
@@ -1416,7 +1484,7 @@ function renderHero() {
       <div class="wrap hero-grid">
         <div>
           <div class="eyebrow">Íslenskt matarplan</div>
-          <h1>Hvað á ég að <span class="accent">borða</span> þessa viku — fyrir hvað margar krónur?</h1>
+          <h1>Hvað á ég að <span class="accent">borða</span> í vikunni — og hvað kostar það?</h1>
           <p class="lead">Veldu budget, verslun og markmið. Fáðu tilbúinn vikumatseðil, uppskriftir og innkaupalista með áætluðu verði — áður en þú ferð út í búð.</p>
           <div class="cta-row">
             <button class="btn" id="startBtn">Búa til matarplan</button>
@@ -1449,10 +1517,10 @@ function renderHero() {
           <p>Matur er dýr á Íslandi og fólk eyðir of miklum tíma í að ákveða hvað á að elda. Matval reiknar verðið fyrirfram, nýtir afganga og passar að innkaupin passi við matseðilinn.</p>
         </div>
         <div class="option-grid" style="grid-template-columns: repeat(auto-fill, minmax(220px,1fr));">
-          <div class="option" style="cursor:default;"><span class="icon">🧮</span> Sjáðu heildarverðið fyrirfram</div>
-          <div class="option" style="cursor:default;"><span class="icon">🍳</span> 30+ íslenskar uppskriftir</div>
-          <div class="option" style="cursor:default;"><span class="icon">♻️</span> Afgangaplan sem sparar pening</div>
-          <div class="option" style="cursor:default;"><span class="icon">🛒</span> Innkaupalisti tilbúinn fyrir Krónuna</div>
+          <div class="option" style="cursor:default;"><span class="icon">🧮</span> Áætlað heildarverð áður en þú verslar</div>
+          <div class="option" style="cursor:default;"><span class="icon">🍳</span> 30+ uppskriftir</div>
+          <div class="option" style="cursor:default;"><span class="icon">♻️</span> Afgangar nýttir í næstu máltíð</div>
+          <div class="option" style="cursor:default;"><span class="icon">🛒</span> Innkaupalisti tilbúinn</div>
         </div>
       </div>
     </section>
@@ -1592,22 +1660,73 @@ function renderPeopleStep() {
 }
 
 function renderDaysStep() {
+  const selectedDays = normalizeSelectedDays(state.selectedDays);
+  const selectedMeals = normalizeSelectedMeals(state.selectedMeals);
   const body = `
-    <div class="option-grid">
-      ${DAY_OPTIONS.map((d) => `
-        <div class="option ${state.days === d ? "selected" : ""}" data-days="${d}" style="justify-content:center;">
-          ${d} daga plan
+    <p style="color:var(--muted); margin-bottom:12px;">Veldu dagana og máltíðirnar sem þú vilt fá í planinu.</p>
+    <div class="pantry-suggestions" style="margin-bottom:12px;">
+      <button class="meal-action-btn" type="button" data-day-preset="weekdays">Virkir dagar</button>
+      <button class="meal-action-btn" type="button" data-day-preset="all">Öll vikan</button>
+    </div>
+    <div class="option-grid" style="margin-bottom:18px;">
+      ${WEEK_DAYS.map((day) => `
+        <div class="option ${selectedDays.includes(day.id) ? "selected" : ""}" data-day="${day.id}" style="justify-content:center;">
+          ${day.short}
         </div>
       `).join("")}
     </div>
+    <div class="quiz-step-label">Máltíðir</div>
+    <div class="option-grid">
+      ${MEAL_OPTIONS.map((meal) => `
+        <div class="option ${selectedMeals.includes(meal.id) ? "selected" : ""}" data-meal="${meal.id}" style="justify-content:center;">
+          ${meal.label}
+        </div>
+      `).join("")}
+    </div>
+    <p id="scopeError" style="color:var(--rust); font-weight:600; min-height:1.2em; margin:12px 0 0;"></p>
   `;
-  quizShell("Skref 5 — Fjöldi daga", "Hversu marga daga viltu plana fyrir?", body);
+  quizShell("Skref 5 — Dagar og máltíðir", "Hvaða daga og máltíðir viltu plana?", body);
 
-  document.querySelectorAll("[data-days]").forEach((el) => {
+  function refreshScopeStep() {
+    state.selectedDays = normalizeSelectedDays(state.selectedDays);
+    state.selectedMeals = normalizeSelectedMeals(state.selectedMeals);
+    state.days = state.selectedDays.length;
+    document.querySelectorAll("[data-day]").forEach((el) => {
+      el.classList.toggle("selected", state.selectedDays.includes(el.dataset.day));
+    });
+    document.querySelectorAll("[data-meal]").forEach((el) => {
+      el.classList.toggle("selected", state.selectedMeals.includes(el.dataset.meal));
+    });
+  }
+
+  document.querySelectorAll("[data-day]").forEach((el) => {
     el.onclick = () => {
-      state.days = Number(el.dataset.days);
-      document.querySelectorAll("[data-days]").forEach((o) => o.classList.remove("selected"));
-      el.classList.add("selected");
+      const day = el.dataset.day;
+      if (state.selectedDays.includes(day)) {
+        if (state.selectedDays.length > 1) state.selectedDays = state.selectedDays.filter((item) => item !== day);
+      } else {
+        state.selectedDays = WEEK_DAYS.map((item) => item.id).filter((id) => [...state.selectedDays, day].includes(id));
+      }
+      refreshScopeStep();
+    };
+  });
+  document.querySelectorAll("[data-meal]").forEach((el) => {
+    el.onclick = () => {
+      const meal = el.dataset.meal;
+      if (state.selectedMeals.includes(meal)) {
+        if (state.selectedMeals.length > 1) state.selectedMeals = state.selectedMeals.filter((item) => item !== meal);
+      } else {
+        state.selectedMeals = MEAL_OPTIONS.map((item) => item.id).filter((id) => [...state.selectedMeals, meal].includes(id));
+      }
+      refreshScopeStep();
+    };
+  });
+  document.querySelectorAll("[data-day-preset]").forEach((el) => {
+    el.onclick = () => {
+      state.selectedDays = el.dataset.dayPreset === "all"
+        ? WEEK_DAYS.map((day) => day.id)
+        : [...DEFAULT_SELECTED_DAYS];
+      refreshScopeStep();
     };
   });
   document.getElementById("nextBtn").onclick = () => { navigateToStep(5); };
@@ -1783,14 +1902,15 @@ function renderMyPlans() {
 
         <div class="saved-plan-list">
           ${savedPlans.length ? savedPlans.map((plan) => {
-            const mealCount = (plan.meals || []).length * 3;
+            const mealCount = (plan.meals || []).reduce((total, day) => total + Object.keys(day || {}).length, 0);
             const goalLabels = (plan.goals || []).map((goal) => GOALS.find((item) => item.id === goal)?.label || goal);
             const dislikeLabels = normalizeAvoidSelections(plan.dislikes || []);
+            const savedMeals = mealScopeLabel(plan.selectedMeals || DEFAULT_SELECTED_MEALS, true);
             return `
               <div class="saved-plan-card">
                 <div>
                   <h3>${plan.title || "Vistað plan"}</h3>
-                  <div class="saved-plan-meta">${formatDate(plan.createdAt)} · ${mealCount} máltíðir · ${fmt(plan.totalCost || 0)}</div>
+                  <div class="saved-plan-meta">${formatDate(plan.createdAt)} · ${mealCount} máltíðir · ${savedMeals} · ${fmt(plan.totalCost || 0)}</div>
                   <div class="saved-plan-meta">${goalLabels.length ? goalLabels.join(", ") : "Engin markmið"}${dislikeLabels.length ? ` · Forðast: ${dislikeLabels.map(escapeHtml).join(", ")}` : ""}</div>
                 </div>
                 <div class="saved-plan-actions">
@@ -1855,7 +1975,8 @@ function renderResults() {
   const overBudget = plan.totalPrice > state.budget;
   const pct = Math.min(100, (plan.totalPrice / state.budget) * 100);
   const perDay = plan.totalPrice / plan.numDays;
-  const perMeal = plan.totalPrice / (plan.numDays * 3);
+  const mealsPerDay = mealSlotsForPlan(plan).length;
+  const perMeal = plan.totalPrice / Math.max(1, plan.numDays * mealsPerDay);
   const estimatedCount = plan.shoppingList.filter((item) => item.isEstimated || item.estimated).length;
   const pricingMessage = state.pricingStatus === "loading"
     ? "Sæki verð frá Krónunni..."
@@ -1916,7 +2037,7 @@ function renderResults() {
           <div class="plan-title-row">
             <h2>Vikan þín</h2>
           </div>
-          <div class="plan-stats">${plan.numDays} dagar · ${plan.people} ${plan.people === 1 ? "manneskja" : "manns"}</div>
+          <div class="plan-stats">${plan.numDays} dagar · ${plan.people} ${plan.people === 1 ? "manneskja" : "manns"} · ${mealScopeLabel(plan.selectedMeals)}</div>
           <p>${state.goals.length ? "Byggt á markmiðunum: " + state.goals.map((g) => GOALS.find((x) => x.id === g).label).join(", ") + "." : "Almennt jafnvægisplan."}</p>
         </div>
 
@@ -1932,7 +2053,7 @@ function renderResults() {
           <div>
             ${plan.days.map((day, i) => `
               <div class="day-card">
-                <h3>${DAY_NAMES[i]} <span class="daynum">DAGUR ${String(i + 1).padStart(2, "0")}</span></h3>
+                <h3>${dayNameForPlanDay(plan, i)} <span class="daynum">DAGUR ${String(i + 1).padStart(2, "0")}</span></h3>
                 ${Object.entries(day).map(([type, meal]) => `
                   <div class="meal-row">
                     <div class="meal-type">${type}</div>
@@ -2206,7 +2327,7 @@ function maxPrimaryProteinStreak(plan) {
   let currentProtein = null;
   let currentStreak = 0;
   plan.days.forEach((day) => {
-    [day.morgunmatur, day.hádegismatur, day.kvöldmatur].forEach(({ recipe }) => {
+    Object.values(day).forEach(({ recipe }) => {
       const protein = recipe.primaryProtein || "none";
       if (protein !== "none" && protein === currentProtein) {
         currentStreak++;
@@ -2225,10 +2346,22 @@ function runWeeklyPlanningAssertions() {
   state.foodDislikes = [];
   const defaultPlan = generatePlan({ goals: [], people: 2, days: 7, pantry: [], silentStats: true });
   console.assert(!defaultPlan.error, "default weekly plan should be generated");
-  console.assert(defaultPlan.days.every((day) => day.morgunmatur.recipe.mealRole !== "dinner"), "dinner recipes must not appear at breakfast");
+  console.assert(defaultPlan.days.every((day) => !day.morgunmatur || day.morgunmatur.recipe.mealRole !== "dinner"), "dinner recipes must not appear at breakfast");
   console.assert(Object.values(recipeRepeatCounts(defaultPlan)).every((count) => count <= 2), "default plan should not repeat recipes more than twice");
   console.assert(maxPrimaryProteinStreak(defaultPlan) <= 4, "default plan should not repeat the same protein more than four meals in a row");
-  console.assert(defaultPlan.days.some((day) => day.hádegismatur.leftover), "weekly plan should use at least one intentional leftover lunch");
+  console.assert(defaultPlan.days.some((day) => day.hádegismatur?.leftover), "weekly plan should use at least one intentional leftover lunch");
+
+  const dinnerOnlyPlan = generatePlan({
+    goals: [],
+    people: 2,
+    selectedDays: ["mon", "tue"],
+    selectedMeals: ["kvöldmatur"],
+    pantry: [],
+    silentStats: true,
+  });
+  console.assert(!dinnerOnlyPlan.error, "dinner-only plan should be generated");
+  console.assert(dinnerOnlyPlan.days.length === 2, "dinner-only plan should only include selected days");
+  console.assert(dinnerOnlyPlan.days.every((day) => day.kvöldmatur && !day.morgunmatur && !day.hádegismatur), "dinner-only plan must not include breakfast or lunch");
 
   const highProteinPlan = generatePlan({ goals: ["high_protein"], people: 2, days: 7, pantry: [], silentStats: true });
   const fishMeals = highProteinPlan.days.flatMap((day) => Object.values(day)).filter(({ recipe }) => recipe.isFishMeal).length;
