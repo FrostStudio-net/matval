@@ -1744,10 +1744,10 @@ function renderDaysStep() {
         <button class="meal-action-btn" type="button" data-day-preset="weekdays">Virkir dagar</button>
         <button class="meal-action-btn" type="button" data-day-preset="all">Öll vikan</button>
       </div>
-      <div class="weekly-selector" role="group" aria-label="Veldu daga">
+      <div class="week-selector" role="group" aria-label="Veldu daga">
         ${WEEK_DAYS.map((day) => `
-          <button class="day-segment ${selectedDays.includes(day.id) ? "selected" : ""}" type="button" data-day="${day.id}" aria-pressed="${selectedDays.includes(day.id)}">
-            <span class="day-segment-check">✓</span>
+          <button class="day-cell ${selectedDays.includes(day.id) ? "selected" : ""}" type="button" data-day="${day.id}" aria-pressed="${selectedDays.includes(day.id)}">
+            <span class="day-cell-check">✓</span>
             <span>${day.short}</span>
           </button>
         `).join("")}

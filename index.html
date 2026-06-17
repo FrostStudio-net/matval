@@ -244,19 +244,22 @@
   }
   .scope-controls{ display:grid; gap:16px; }
   .scope-presets{ display:flex; gap:8px; flex-wrap:wrap; }
-  .weekly-selector{
+  .week-selector{
     display:grid;
     grid-template-columns:repeat(7, minmax(0, 1fr));
     border:1px solid var(--line);
-    border-radius:12px;
+    border-radius:10px;
     overflow:hidden;
     background:var(--paper);
+    position:relative;
+    z-index:0;
   }
-  .day-segment{
+  .day-cell{
     min-height:58px;
     border:0;
     border-right:1px solid var(--line);
     background:transparent;
+    background-clip:padding-box;
     color:var(--ink);
     font-family:var(--font-body);
     font-weight:600;
@@ -266,21 +269,30 @@
     align-items:center;
     justify-content:center;
     gap:4px;
-    transition:background .15s ease, color .15s ease, box-shadow .15s ease;
+    transition:background .15s ease, color .15s ease;
   }
-  .day-segment:last-child{ border-right:0; }
-  .day-segment-check{
+  .day-cell:last-child{ border-right:0; }
+  .day-cell:first-child{
+    border-top-left-radius:10px;
+    border-bottom-left-radius:10px;
+  }
+
+  .day-cell:last-child{
+    border-top-right-radius:10px;
+    border-bottom-right-radius:10px;
+  }
+  .day-cell-check{
     height:16px;
     line-height:16px;
     font-size:0.78rem;
     color:transparent;
   }
-  .day-segment.selected{
+  .day-cell.selected{
     background:rgba(63,93,69,0.1);
     color:var(--moss-dark);
-    box-shadow:inset 0 0 0 1px var(--moss);
+    box-shadow:none;
   }
-  .day-segment.selected .day-segment-check{ color:var(--moss); }
+  .day-cell.selected .day-cell-check{ color:var(--moss); }
   .meal-selector{
     display:grid;
     grid-template-columns:repeat(3, minmax(0, 1fr));
@@ -610,15 +622,15 @@
     .scope-controls{ gap:10px; }
     .scope-presets{ display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:6px; }
     .scope-presets .meal-action-btn{ width:100%; min-height:34px; }
-    .weekly-selector{
+    .week-selector{
       grid-template-columns:repeat(2, minmax(0, 1fr));
-      border-radius:10px;
-      overflow:visible;
       border:0;
+      border-radius:0;
+      overflow:visible;
       gap:6px;
       background:transparent;
     }
-    .day-segment{
+    .day-cell{
       min-height:42px;
       border:1px solid var(--line);
       border-radius:9px;
@@ -628,8 +640,8 @@
       background:var(--paper);
       font-size:0.86rem;
     }
-    .day-segment:last-child{ border-right:1px solid var(--line); }
-    .day-segment-check{ width:14px; height:auto; line-height:1; }
+    .day-cell:last-child{ border-right:1px solid var(--line); }
+    .day-cell-check{ width:14px; height:auto; line-height:1; }
     .meal-selector{ grid-template-columns:1fr; gap:6px; }
     .scope-helper{ font-size:0.78rem; margin-top:7px; }
     .quiz-card p,
