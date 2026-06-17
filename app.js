@@ -140,6 +140,8 @@ const state = {
   plan: null,
   currentView: "home",
   homeFresh: true,
+  resultTab: "plan",
+  activeResultDay: 0,
   pricingStatus: "idle",
   pricingError: null,
   replacementMessage: null,
@@ -252,6 +254,11 @@ function startNewWizard() {
   resetWizardDefaults();
   state.homeFresh = false;
   navigateToStep(0);
+}
+
+function resetResultViewState() {
+  state.resultTab = "plan";
+  state.activeResultDay = 0;
 }
 
 // ---------- Plan generation ----------
@@ -1130,6 +1137,7 @@ function openSavedPlan(savedPlanId) {
   state.days = state.selectedDays.length;
   state.plan = hydrateSavedPlan(savedPlan);
   refreshPlanTotals(state.plan);
+  resetResultViewState();
   state.step = 7;
   state.currentView = "results";
   state.pricingStatus = "idle";
@@ -1182,6 +1190,7 @@ function generateFromSavedPlan(savedPlanId) {
     budget: state.budget,
     avoidRecipeIds: recipeIdsInPlanSnapshot(savedPlan),
   });
+  resetResultViewState();
   state.step = 7;
   state.currentView = "results";
   state.pricingStatus = "idle";
@@ -1938,6 +1947,7 @@ function renderDislikesStep() {
     state.foodDislikes = normalizeAvoidSelections(state.foodDislikes);
     saveFoodDislikes();
     state.plan = generatePlan();
+    resetResultViewState();
     state.step = 7;
     state.currentView = "results";
     state.pricingStatus = "idle";
@@ -2112,6 +2122,91 @@ function renderResults() {
     }))
     .filter((group) => group.items.length);
   const traceId = state.traceId || "no-trace";
+  const planNote = state.goals.length
+    ? "Byggt á markmiðunum: " + state.goals.map((g) => GOALS.find((x) => x.id === g).label).join(", ") + "."
+    : "Almennt jafnvægisplan.";
+  state.resultTab = state.resultTab === "grocery" ? "grocery" : "plan";
+  if (!Number.isInteger(state.activeResultDay) || state.activeResultDay < 0 || state.activeResultDay >= plan.days.length) {
+    state.activeResultDay = 0;
+  }
+  const resultDayTabs = plan.days.map((day, i) => {
+    const dayId = normalizeSelectedDays(plan.selectedDays)[i];
+    const label = WEEK_DAYS.find((item) => item.id === dayId)?.short || `D${i + 1}`;
+    return `
+      <button class="mobile-day-tab ${state.activeResultDay === i ? "active" : ""}" type="button" data-result-day="${i}">
+        ${escapeHtml(label)}
+      </button>
+    `;
+  }).join("");
+  const renderDayCard = (day, i, { mobile = false } = {}) => `
+    <div class="day-card ${mobile ? "mobile-day-card" : ""}">
+      <h3>${dayNameForPlanDay(plan, i)} <span class="daynum">DAGUR ${String(i + 1).padStart(2, "0")}</span></h3>
+      ${Object.entries(day).map(([type, meal]) => `
+        <div class="meal-row">
+          <div class="meal-type">${type}</div>
+          <div style="flex:1;">
+            <div class="meal-name" data-recipe="${meal.recipe.id}" data-recipe-day="${i}" data-recipe-slot="${type}">${meal.recipe.name}</div>
+            <div class="meal-tags">${tagLabels(meal.recipe.tags.slice(0,3))} · ${meal.recipe.calories} kcal · ${meal.recipe.protein}g prótein</div>
+            ${meal.leftover ? `<div class="leftover-note">♻️ Afgangaplan: notar afganga frá fyrri degi</div>` : ""}
+            <div class="meal-actions">
+              <button class="meal-action-btn" data-replace-day="${i}" data-replace-slot="${type}">↻ Skipta út</button>
+            </div>
+          </div>
+        </div>
+      `).join("")}
+    </div>
+  `;
+  const groceryGroupsHtml = groupedShoppingList.map((group) => `
+    <div class="shopping-group">
+      <div class="shopping-group-title">${group.category}</div>
+      ${group.items.map((item) => {
+        const badge = shoppingItemBadge(item);
+        return `
+          ${(() => { console.log("[TRACE]", traceId, "rendering item", item); return ""; })()}
+          <label class="shopping-item">
+            <input class="shopping-check" type="checkbox" aria-label="${escapeHtml(shoppingDisplayName(item))}" />
+            <span class="shopping-item-main">
+              <span class="shopping-item-name">${escapeHtml(shoppingDisplayName(item))}</span>
+              <span class="shopping-item-meta">${escapeHtml(shoppingLineMeta(item))}${badge ? ` · <span class="shopping-badge">${escapeHtml(badge)}</span>` : ""}</span>
+            </span>
+            <span class="shopping-item-price mono">${fmt(shoppingLinePrice(item))}</span>
+          </label>
+        `;
+      }).join("")}
+    </div>
+  `).join("");
+  const groceryListHtml = (mobile = false) => `
+    <div class="shopping-list ${mobile ? "mobile-shopping-list" : ""}">
+      ${mobile ? `
+        <div class="mobile-grocery-summary">
+          <div>
+            <h3>Innkaupalisti — Krónan</h3>
+            <div class="shopping-source-note">Verð sótt frá Krónunni þegar hægt er.</div>
+          </div>
+          <div class="mobile-grocery-total mono">${fmt(plan.totalPrice)}</div>
+          <div class="mobile-grocery-count">${plan.shoppingList.length} ${plan.shoppingList.length === 1 ? "vara" : "vörur"}</div>
+          <button class="meal-action-btn refresh-prices-btn" type="button">Uppfæra verð</button>
+        </div>
+      ` : `
+        <h3>Innkaupalisti — Krónan</h3>
+        <div class="shopping-source-note">Verð sótt frá Krónunni þegar hægt er.</div>
+        <button class="meal-action-btn refresh-prices-btn" type="button" style="margin:8px 0 12px;">Uppfæra verð</button>
+      `}
+      ${pricingMessage ? `<div class="budget-note" style="margin-bottom:10px;">${pricingMessage}</div>` : ""}
+      ${groceryGroupsHtml}
+      ${state.pantry.length ? `<div style="margin-top:10px; font-size:0.8rem; color:var(--muted);">✓ ${state.pantry.length} vara/vörur frá "til heima" eru ekki inni á listanum.</div>` : ""}
+      ${estimatedCount ? `<div class="budget-note" style="margin-top:10px;">${estimatedCount} vara/vörur eru með áætluðu verði.</div>` : ""}
+      <div class="total-row"><span>Heildarverð</span><span>${fmt(plan.totalPrice)}</span></div>
+      <div class="budget-bar"><div class="budget-bar-fill ${overBudget ? "over" : ""}" style="width:${pct}%"></div></div>
+      <div class="budget-note">
+        ${overBudget
+          ? `Planið er ${fmt(plan.totalPrice - state.budget)} yfir budget (${fmt(state.budget)}).`
+          : `Planið er innan budget — ${fmt(state.budget - plan.totalPrice)} til skiptanna.`}
+      </div>
+      <div class="budget-note" style="margin-top:8px;">≈ ${fmt(perDay)} á dag · ≈ ${fmt(perMeal)} á máltíð</div>
+      <div class="budget-note" style="margin-top:8px;">Verð geta breyst.</div>
+    </div>
+  `;
 
   app.innerHTML = `
     <section>
@@ -2122,76 +2217,38 @@ function renderResults() {
             <h2>Vikan þín</h2>
           </div>
           <div class="plan-stats">${plan.numDays} dagar · ${plan.people} ${plan.people === 1 ? "manneskja" : "manns"} · ${mealScopeLabel(plan.selectedMeals)}</div>
-          <p>${state.goals.length ? "Byggt á markmiðunum: " + state.goals.map((g) => GOALS.find((x) => x.id === g).label).join(", ") + "." : "Almennt jafnvægisplan."}</p>
+          <p>${planNote}</p>
         </div>
 
         <div class="result-actions">
           <button class="btn ghost" id="restartBtn">← Breyta vali</button>
-          <button class="btn ghost" id="editPrefsBtn">Stillingar</button>
-          <button class="btn ghost" id="myPlansBtn">Mín plön</button>
           <button class="btn" id="savePlanBtn">Vista plan</button>
         </div>
         ${replacementMessage ? `<div class="budget-note" style="margin:10px 0 16px;">${escapeHtml(replacementMessage)}</div>` : ""}
 
-        <div class="results-summary">
+        <div class="mobile-only-result">
+          <div class="mobile-result-tabs" role="tablist" aria-label="Veldu niðurstöðu">
+            <button class="mobile-result-tab ${state.resultTab === "plan" ? "active" : ""}" type="button" data-result-tab="plan">📅 Matarplan</button>
+            <button class="mobile-result-tab ${state.resultTab === "grocery" ? "active" : ""}" type="button" data-result-tab="grocery">🛒 Innkaupalisti</button>
+          </div>
+          <div class="mobile-result-panel ${state.resultTab === "plan" ? "active" : ""}" data-result-panel="plan">
+            <div class="mobile-day-tabs" aria-label="Veldu dag">
+              ${resultDayTabs}
+            </div>
+            ${renderDayCard(plan.days[state.activeResultDay], state.activeResultDay, { mobile: true })}
+          </div>
+          <div class="mobile-result-panel ${state.resultTab === "grocery" ? "active" : ""}" data-result-panel="grocery">
+            ${groceryListHtml(true)}
+          </div>
+        </div>
+
+        <div class="results-summary desktop-only-result">
           <div>
-            ${plan.days.map((day, i) => `
-              <div class="day-card">
-                <h3>${dayNameForPlanDay(plan, i)} <span class="daynum">DAGUR ${String(i + 1).padStart(2, "0")}</span></h3>
-                ${Object.entries(day).map(([type, meal]) => `
-                  <div class="meal-row">
-                    <div class="meal-type">${type}</div>
-                    <div style="flex:1;">
-                      <div class="meal-name" data-recipe="${meal.recipe.id}" data-recipe-day="${i}" data-recipe-slot="${type}">${meal.recipe.name}</div>
-                      <div class="meal-tags">${tagLabels(meal.recipe.tags.slice(0,3))} · ${meal.recipe.calories} kcal · ${meal.recipe.protein}g prótein</div>
-                      ${meal.leftover ? `<div class="leftover-note">♻️ Afgangaplan: notar afganga frá fyrri degi</div>` : ""}
-                      <div class="meal-actions">
-                        <button class="meal-action-btn" data-replace-day="${i}" data-replace-slot="${type}">↻ Skipta út</button>
-                      </div>
-                    </div>
-                  </div>
-                `).join("")}
-              </div>
-            `).join("")}
+            ${plan.days.map((day, i) => renderDayCard(day, i)).join("")}
           </div>
 
           <div>
-            <div class="shopping-list">
-              <h3>Innkaupalisti — Krónan</h3>
-              <div class="shopping-source-note">Verð sótt frá Krónunni þegar hægt er.</div>
-              <button class="meal-action-btn" id="refreshPricesBtn" style="margin:8px 0 12px;">Uppfæra verð</button>
-              ${pricingMessage ? `<div class="budget-note" style="margin-bottom:10px;">${pricingMessage}</div>` : ""}
-              ${groupedShoppingList.map((group) => `
-                <div class="shopping-group">
-                  <div class="shopping-group-title">${group.category}</div>
-                  ${group.items.map((item) => {
-                    const badge = shoppingItemBadge(item);
-                    return `
-                      ${(() => { console.log("[TRACE]", traceId, "rendering item", item); return ""; })()}
-                      <label class="shopping-item">
-                        <input class="shopping-check" type="checkbox" aria-label="${escapeHtml(shoppingDisplayName(item))}" />
-                        <span class="shopping-item-main">
-                          <span class="shopping-item-name">${escapeHtml(shoppingDisplayName(item))}</span>
-                          <span class="shopping-item-meta">${escapeHtml(shoppingLineMeta(item))}${badge ? ` · <span class="shopping-badge">${escapeHtml(badge)}</span>` : ""}</span>
-                        </span>
-                        <span class="shopping-item-price mono">${fmt(shoppingLinePrice(item))}</span>
-                      </label>
-                    `;
-                  }).join("")}
-                </div>
-              `).join("")}
-              ${state.pantry.length ? `<div style="margin-top:10px; font-size:0.8rem; color:var(--muted);">✓ ${state.pantry.length} vara/vörur frá "til heima" eru ekki inni á listanum.</div>` : ""}
-              ${estimatedCount ? `<div class="budget-note" style="margin-top:10px;">${estimatedCount} vara/vörur eru með áætluðu verði.</div>` : ""}
-              <div class="total-row"><span>Heildarverð</span><span>${fmt(plan.totalPrice)}</span></div>
-              <div class="budget-bar"><div class="budget-bar-fill ${overBudget ? "over" : ""}" style="width:${pct}%"></div></div>
-              <div class="budget-note">
-                ${overBudget
-                  ? `Planið er ${fmt(plan.totalPrice - state.budget)} yfir budget (${fmt(state.budget)}).`
-                  : `Planið er innan budget — ${fmt(state.budget - plan.totalPrice)} til skiptanna.`}
-              </div>
-              <div class="budget-note" style="margin-top:8px;">≈ ${fmt(perDay)} á dag · ≈ ${fmt(perMeal)} á máltíð</div>
-              <div class="budget-note" style="margin-top:8px;">Verð geta breyst.</div>
-            </div>
+            ${groceryListHtml(false)}
           </div>
         </div>
       </div>
@@ -2200,22 +2257,34 @@ function renderResults() {
   `;
 
   document.getElementById("restartBtn").onclick = () => { navigateToStep(0); };
-  document.getElementById("editPrefsBtn").onclick = () => { navigateToStep(6); };
-  document.getElementById("myPlansBtn").onclick = () => { navigateToStep(8); };
   document.getElementById("savePlanBtn").onclick = () => {
     const saved = saveCurrentPlan();
     if (saved) {
       navigateToStep(8);
     }
   };
-  document.getElementById("refreshPricesBtn").onclick = () => {
-    if (!state.plan || state.plan.error) return;
-    refreshPlanTotals(state.plan);
-    state.pricingStatus = "idle";
-    state.pricingError = null;
-    state.replacementMessage = null;
-    hydrateKronanPrices(state.plan);
-  };
+  document.querySelectorAll(".refresh-prices-btn").forEach((el) => {
+    el.onclick = () => {
+      if (!state.plan || state.plan.error) return;
+      refreshPlanTotals(state.plan);
+      state.pricingStatus = "idle";
+      state.pricingError = null;
+      state.replacementMessage = null;
+      hydrateKronanPrices(state.plan);
+    };
+  });
+  document.querySelectorAll("[data-result-tab]").forEach((el) => {
+    el.onclick = () => {
+      state.resultTab = el.dataset.resultTab === "grocery" ? "grocery" : "plan";
+      renderResults();
+    };
+  });
+  document.querySelectorAll("[data-result-day]").forEach((el) => {
+    el.onclick = () => {
+      state.activeResultDay = Number(el.dataset.resultDay);
+      renderResults();
+    };
+  });
   document.querySelectorAll("[data-recipe]").forEach((el) => {
     el.onclick = () => openRecipeModal(el.dataset.recipe, {
       dayIndex: el.dataset.recipeDay !== undefined ? Number(el.dataset.recipeDay) : null,

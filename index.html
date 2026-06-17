@@ -328,6 +328,7 @@
   .pantry-suggestions .option{ padding: 8px 14px; font-size:0.85rem; }
 
   /* Results */
+  .mobile-only-result{ display:none; }
   .results-summary{
     display:grid; grid-template-columns: 1.2fr 1fr; gap: 32px; margin-bottom: 48px; align-items:start;
   }
@@ -357,6 +358,10 @@
     font-size:0.78rem; cursor:pointer;
   }
   .meal-action-btn.danger{ color:var(--rust); }
+  .mobile-result-tabs,
+  .mobile-day-tabs{ display:none; }
+  .mobile-result-panel{ display:none; }
+  .mobile-grocery-summary{ display:none; }
   .saved-stats{ display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:12px; margin-bottom:22px; }
   .stat-card{ background:var(--card); border:1px solid var(--line); border-radius:var(--radius); padding:18px; }
   .stat-card span{ display:block; color:var(--muted); font-size:0.82rem; margin-bottom:6px; }
@@ -499,6 +504,94 @@
   .modal-actions{ display:flex; gap:10px; flex-wrap:wrap; margin-top:22px; }
   .modal-actions .btn{ padding:11px 18px; min-height:42px; font-size:0.92rem; }
   .modal .tag-pill{ display:inline-block; background: var(--moss); color:var(--paper); border-radius:999px; padding:4px 10px; font-size:0.74rem; font-weight:700; }
+
+  @media (max-width: 760px){
+    .desktop-only-result{ display:none !important; }
+    .mobile-only-result{ display:block; }
+    .results-summary{ display:block; }
+    .result-actions{
+      display:grid;
+      grid-template-columns:1fr 1fr;
+      gap:10px;
+      margin:14px 0 8px;
+    }
+    .result-actions .btn{ width:100%; }
+    .mobile-result-tabs{
+      display:grid;
+      grid-template-columns:1fr 1fr;
+      border:1px solid var(--line);
+      border-radius:12px;
+      overflow:hidden;
+      margin:18px 0;
+      background:var(--card);
+    }
+    .mobile-result-tab{
+      min-height:48px;
+      border:0;
+      background:transparent;
+      font-family:var(--font-body);
+      font-weight:700;
+      color:var(--ink);
+      cursor:pointer;
+    }
+    .mobile-result-tab.active{
+      background:var(--moss);
+      color:var(--paper);
+    }
+    .mobile-result-panel{ display:none; }
+    .mobile-result-panel.active{ display:block; }
+    .mobile-day-tabs{
+      display:flex;
+      gap:8px;
+      overflow-x:auto;
+      padding-bottom:4px;
+      margin:14px 0;
+      -webkit-overflow-scrolling:touch;
+    }
+    .mobile-day-tab{
+      flex:0 0 auto;
+      border:1px solid var(--line);
+      background:var(--card);
+      border-radius:10px;
+      padding:10px 13px;
+      font-family:var(--font-body);
+      font-weight:700;
+      color:var(--ink);
+      cursor:pointer;
+    }
+    .mobile-day-tab.active{
+      background:var(--moss);
+      border-color:var(--moss);
+      color:var(--paper);
+    }
+    .mobile-day-card{ margin-bottom:18px; }
+    .mobile-day-card .meal-row{ display:block; padding:12px 0; }
+    .mobile-day-card .meal-type{ width:auto; margin-bottom:4px; }
+    .mobile-grocery-summary{
+      display:grid;
+      gap:8px;
+      padding-bottom:14px;
+      margin-bottom:12px;
+      border-bottom:1px solid var(--line);
+    }
+    .mobile-grocery-summary h3{ margin:0; }
+    .mobile-grocery-total{
+      font-family:var(--font-heading);
+      font-size:1.85rem;
+      font-weight:700;
+      color:var(--moss-dark);
+      line-height:1;
+    }
+    .mobile-grocery-count{
+      color:var(--muted);
+      font-size:0.84rem;
+      font-weight:600;
+    }
+    .mobile-shopping-list{
+      width:100%;
+      border-radius:10px;
+    }
+  }
 
   /* Footer */
   footer{ border-top:1px solid var(--line); padding: 32px 0; text-align:center; color: var(--muted); font-size:0.85rem; }
