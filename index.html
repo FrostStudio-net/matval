@@ -884,7 +884,7 @@
     .quiz-section{
       padding-bottom:calc(96px + env(safe-area-inset-bottom));
     }
-    body{
+    body.quiz-active{
       overscroll-behavior-y:none;
     }
     .step-days-card{
@@ -994,6 +994,133 @@
     }
     .quiz-nav{
       min-height:78px;
+    }
+  }
+
+  @media (max-width: 700px){
+    :root{
+      --mobile-header-height:64px;
+      --mobile-quiz-nav-height:88px;
+    }
+    body.quiz-active{
+      overflow:hidden;
+      height:100dvh;
+    }
+    body.quiz-active #app,
+    body.quiz-active .quiz-section{
+      height:calc(100dvh - var(--mobile-header-height));
+      overflow:hidden;
+    }
+    body.quiz-active .quiz-section{
+      display:flex;
+      flex-direction:column;
+      justify-content:center;
+      align-items:stretch;
+      min-height:0;
+      padding:14px 14px calc(var(--mobile-quiz-nav-height) + env(safe-area-inset-bottom));
+      box-sizing:border-box;
+    }
+    body.quiz-active .quiz-wrap{
+      width:100%;
+      padding:0;
+    }
+    body.quiz-active .quiz-card{
+      width:100%;
+      max-height:calc(100dvh - var(--mobile-header-height) - var(--mobile-quiz-nav-height) - 28px) !important;
+      height:auto !important;
+      overflow:hidden !important;
+      box-sizing:border-box;
+    }
+    body.quiz-active .quiz-body{
+      max-height:100%;
+      overflow:hidden;
+      padding-bottom:0;
+    }
+    body.quiz-active .step-days-card .quiz-body,
+    body.quiz-active .step-days-body{
+      max-height:100% !important;
+      height:auto !important;
+      overflow:hidden !important;
+      padding-bottom:0 !important;
+    }
+    body.quiz-active .quiz-card.allow-inner-scroll .quiz-body{
+      overflow-y:auto;
+      -webkit-overflow-scrolling:touch;
+    }
+    body.quiz-active .quiz-nav{
+      position:fixed;
+      left:0;
+      right:0;
+      bottom:0;
+      height:var(--mobile-quiz-nav-height);
+      min-height:0;
+      padding:14px 18px calc(14px + env(safe-area-inset-bottom));
+      background:var(--paper);
+      border-top:1px solid var(--line);
+      z-index:50;
+      box-sizing:border-box;
+    }
+    body.quiz-active *{
+      max-width:100%;
+    }
+    body.quiz-active .quiz-card,
+    body.quiz-active .quiz-body,
+    body.quiz-active .option-grid,
+    body.quiz-active .week-selector,
+    body.quiz-active .meal-selector{
+      min-width:0;
+    }
+    body.quiz-active .step-goals-card,
+    body.quiz-active .step-days-card{
+      padding:14px;
+    }
+    body.quiz-active .step-goals-card h3,
+    body.quiz-active .step-days-card h3{
+      font-size:1.55rem;
+      line-height:1.08;
+      margin-bottom:10px;
+    }
+    body.quiz-active .step-goals-card .quiz-body > p,
+    body.quiz-active .step-days-card .quiz-body > p,
+    body.quiz-active .step-days-card .scope-controls > p{
+      font-size:0.95rem;
+      line-height:1.25;
+      margin-bottom:12px !important;
+    }
+    body.quiz-active .step-goals-card .option-grid{
+      grid-template-columns:repeat(2, minmax(0, 1fr));
+      gap:8px;
+      margin-bottom:0;
+    }
+    body.quiz-active .step-goals-card .option{
+      min-height:56px;
+      padding:10px 12px;
+    }
+    body.quiz-active .step-days-card .scope-controls{
+      gap:8px;
+    }
+    body.quiz-active .step-days-card .scope-presets{
+      grid-template-columns:repeat(2, minmax(0, 1fr));
+      gap:8px;
+      margin-bottom:10px;
+    }
+    body.quiz-active .step-days-card .week-selector{
+      grid-template-columns:repeat(2, minmax(0, 1fr));
+      gap:8px;
+      margin-bottom:12px;
+    }
+    body.quiz-active .step-days-card .day-cell{
+      min-height:42px;
+      padding:8px 10px;
+    }
+    body.quiz-active .step-days-card .meal-selector{
+      grid-template-columns:repeat(3, minmax(0, 1fr));
+      gap:8px;
+    }
+    body.quiz-active .step-days-card .meal-selector .option{
+      min-height:42px;
+      padding:8px 6px;
+      font-size:0.82rem;
     }
   }
 

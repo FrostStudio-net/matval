@@ -250,6 +250,11 @@ function scrollToPageTop() {
   window.scrollTo({ top: 0, left: 0, behavior: "auto" });
 }
 
+function setQuizActive(active) {
+  if (!IS_BROWSER) return;
+  document.body.classList.toggle("quiz-active", Boolean(active));
+}
+
 if (typeof window !== "undefined" && window.history && "scrollRestoration" in window.history) {
   window.history.scrollRestoration = "manual";
 }
@@ -1576,6 +1581,7 @@ function render() {
 }
 
 function renderHero() {
+  setQuizActive(false);
   const hasCurrentPlan = Boolean(state.plan && !state.plan.error);
   app.innerHTML = `
     <section class="hero">
@@ -1634,8 +1640,9 @@ function renderHero() {
   };
 }
 
-function quizShell(stepLabel, title, bodyHtml, { nextLabel = "Áfram", nextDisabled = false, showBack = true, cardClass = "", bodyClass = "" } = {}) {
+function quizShell(stepLabel, title, bodyHtml, { nextLabel = "Áfram", nextDisabled = false, showBack = true, cardClass = "", bodyClass = "", allowInnerScroll = false } = {}) {
   clearInteractionState();
+  setQuizActive(true);
   const totalSteps = STEP_LABELS.length;
   const newProgressRatio = state.step >= 0 && state.step < totalSteps
     ? (state.step + 1) / totalSteps
@@ -1648,7 +1655,7 @@ function quizShell(stepLabel, title, bodyHtml, { nextLabel = "Áfram", nextDisab
   app.innerHTML = `
     <section class="quiz-section">
       <div class="wrap quiz-wrap">
-        <div class="quiz-card ${cardClass}">
+        <div class="quiz-card ${cardClass} ${allowInnerScroll ? "allow-inner-scroll" : ""}">
           <div class="quiz-inline-progress">
             <div class="quiz-inline-progress-text">${progressText}</div>
             <div class="quiz-inline-progress-track">
@@ -1690,7 +1697,9 @@ function renderGoalsStep() {
       `).join("")}
     </div>
   `;
-  quizShell("Skref 1 — Markmið", "Hvað er markmiðið þitt þessa viku?", body);
+  quizShell("Skref 1 — Markmið", "Hvað er markmiðið þitt þessa viku?", body, {
+    cardClass: "step-goals-card",
+  });
 
   document.querySelectorAll("[data-goal]").forEach((el) => {
     el.onclick = () => {
@@ -1718,7 +1727,9 @@ function renderStoreStep() {
       `).join("")}
     </div>
   `;
-  quizShell("Skref 2 — Verslun", "Hvaða verslun viltu nota?", body);
+  quizShell("Skref 2 — Verslun", "Hvaða verslun viltu nota?", body, {
+    allowInnerScroll: true,
+  });
 
   document.querySelectorAll("[data-store]").forEach((el) => {
     const storeObj = STORES.find((s) => s.id === el.dataset.store);
@@ -1888,7 +1899,9 @@ function renderPantryStep() {
       </div>
     </div>
   `;
-  quizShell("Skref 6 — Til heima", "Hvað er til í eldhúsinu hjá þér?", body);
+  quizShell("Skref 6 — Til heima", "Hvað er til í eldhúsinu hjá þér?", body, {
+    allowInnerScroll: true,
+  });
 
   function refreshTags() {
     document.getElementById("pantryTags").innerHTML = state.pantry.map((key) => `
@@ -1950,7 +1963,10 @@ function renderDislikesStep() {
     </div>
     ${selectedLabels.length ? `<p style="color:var(--muted); font-size:0.85rem;">Forðast: ${selectedLabels.map(escapeHtml).join(", ")}</p>` : ""}
   `;
-  quizShell("Skref 7 — Forðast", "Er eitthvað sem þú vilt forðast?", body, { nextLabel: "Búa til matarplan" });
+  quizShell("Skref 7 — Forðast", "Er eitthvað sem þú vilt forðast?", body, {
+    nextLabel: "Búa til matarplan",
+    allowInnerScroll: true,
+  });
 
   function addAvoidFood(value) {
     const label = avoidLabel(value);
@@ -2024,6 +2040,7 @@ function formatDate(value) {
 
 function renderMyPlans() {
   clearInteractionState();
+  setQuizActive(false);
   const savedPlans = loadSavedPlans();
   const stats = savedPlanStats(savedPlans);
 
@@ -2101,6 +2118,7 @@ function renderMyPlans() {
 
 function renderResults() {
   clearInteractionState();
+  setQuizActive(false);
   const plan = state.plan;
   if (!plan || plan.error) {
     app.innerHTML = `
