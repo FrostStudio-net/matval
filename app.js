@@ -124,6 +124,62 @@ const AVOID_QUICK_CHIPS = [
   "Skelfiskur",
   "Sesam",
 ];
+const AVOID_GROUPS = {
+  fish: {
+    labels: ["fiskur", "fish"],
+    ingredientKeys: ["salmon", "tuna", "cod", "haddock", "white_fish"],
+    words: ["fiskur", "lax", "túnfiskur", "tunfiskur", "þorskur", "thorskur", "ýsa", "ysa", "bleikja", "silungur", "fish sauce", "fisksósa"],
+    tags: ["fish", "seafood"],
+  },
+  shellfish: {
+    labels: ["skelfiskur", "shellfish"],
+    ingredientKeys: ["shrimp", "prawns", "crab", "lobster"],
+    words: ["skelfiskur", "rækjur", "raekjur", "krabbi", "humar", "lobster", "shrimp", "prawn", "crab"],
+    tags: ["shellfish", "seafood"],
+  },
+  nuts: {
+    labels: ["hnetur", "nuts", "trjáhnetur", "tree nuts"],
+    ingredientKeys: ["almonds", "cashews", "walnuts", "hazelnuts", "pistachios", "pecans", "macadamia", "brazil_nuts", "peanut_butter"],
+    words: ["hnetur", "hneta", "trjáhnetur", "möndlur", "mandla", "almond", "almonds", "cashew", "kasjú", "valhnetur", "walnut", "heslihnetur", "hazelnut", "pistasíur", "pistachio", "pecan", "macadamia", "brazil nut", "parahnetur", "hnetusmjör", "peanut butter", "jarðhnetur", "jardhnetur", "peanuts"],
+    tags: ["nuts", "tree_nuts", "peanuts"],
+  },
+  peanuts: {
+    labels: ["jarðhnetur", "jardhnetur", "peanuts"],
+    ingredientKeys: ["peanut_butter"],
+    words: ["jarðhnetur", "jardhnetur", "peanut", "peanuts", "hnetusmjör", "peanut butter"],
+    tags: ["peanuts"],
+  },
+  milk: {
+    labels: ["mjólk", "mjólkurlaust", "milk", "dairy"],
+    ingredientKeys: ["milk", "cheese", "yogurt_skyr", "cottage_cheese", "butter"],
+    words: ["mjólk", "mjolkur", "mjólkur", "rjómi", "ostur", "skyr", "jógúrt", "kotasæla", "smjör", "butter", "cheese", "yogurt", "cottage cheese", "cream"],
+    tags: ["dairy", "milk"],
+  },
+  egg: {
+    labels: ["egg", "eggs"],
+    ingredientKeys: ["eggs"],
+    words: ["egg", "eggs"],
+    tags: ["egg"],
+  },
+  soy: {
+    labels: ["soja", "soy"],
+    ingredientKeys: ["soy_sauce", "tofu"],
+    words: ["soja", "soy", "sojasósa", "soy sauce", "tófú", "tofu"],
+    tags: ["soy"],
+  },
+  gluten: {
+    labels: ["gluten", "hveiti"],
+    ingredientKeys: ["bread", "pasta", "tortilla", "noodles"],
+    words: ["gluten", "hveiti", "brauð", "pasta", "tortilla", "núðlur", "noodles", "wheat"],
+    tags: ["gluten", "wheat"],
+  },
+  sesame: {
+    labels: ["sesam", "sesame"],
+    ingredientKeys: [],
+    words: ["sesam", "sesame", "tahini"],
+    tags: ["sesame"],
+  },
+};
 const AVOID_ALIAS_GROUPS = {
   Hnetur: ["hnetur", "trjáhnetur", "möndlur", "cashew", "valhnetur", "heslihnetur", "hnetusmjör"],
   Mjólk: ["mjólk", "ostur", "skyr", "jógúrt", "rjómi", "smjör", "kotasæla"],
@@ -184,6 +240,7 @@ const state = {
 
 const pricingRequest = { id: 0 };
 const PLAN_ERROR_MESSAGE = "Ekki tókst að búa til plan með þessum skilyrðum. Prófaðu hærra budget eða færri takmarkanir.";
+const AVOID_PLAN_ERROR_MESSAGE = "Engin uppskrift fannst sem passar við þessar takmarkanir. Prófaðu að fjarlægja eitt atriði úr Forðast.";
 const IS_BROWSER = typeof window !== "undefined" && typeof document !== "undefined";
 
 function formatKr(amount) {
@@ -326,12 +383,57 @@ function saveFoodDislikes() {
 
 function normalizeFoodText(value) {
   return String(value || "")
-    .toLocaleLowerCase("is-IS")
+    .toLowerCase()
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
-    .replace(/[^a-z0-9þæðöüø\s]/gi, " ")
+    .replace(/ð/g, "d")
+    .replace(/þ/g, "th")
+    .replace(/[^a-z0-9æöüø\s]/gi, " ")
     .replace(/\s+/g, " ")
     .trim();
+}
+
+function buildAvoidRules(selectedAvoids = []) {
+  const selections = normalizeAvoidSelections(selectedAvoids);
+  const selected = selections.map(normalizeFoodText);
+  const blockedKeys = new Set();
+  const blockedWords = new Set();
+  const blockedTags = new Set();
+
+  selected.forEach((term, index) => {
+    if (!term) return;
+    const label = selections[index];
+    const option = avoidOptionForValue(label);
+    blockedWords.add(term);
+    (option?.ingredientKeys || []).forEach((key) => blockedKeys.add(key));
+    (option?.matchWords || []).forEach((word) => {
+      const normalized = normalizeFoodText(word);
+      if (normalized) blockedWords.add(normalized);
+    });
+    (AVOID_ALIAS_GROUPS[label] || []).forEach((word) => {
+      const normalized = normalizeFoodText(word);
+      if (normalized) blockedWords.add(normalized);
+    });
+
+    Object.values(AVOID_GROUPS).forEach((group) => {
+      const groupLabels = (group.labels || []).map(normalizeFoodText);
+      const groupWords = (group.words || []).map(normalizeFoodText);
+      const matchesGroup = groupLabels.includes(term) || groupWords.includes(term);
+      if (!matchesGroup) return;
+
+      (group.ingredientKeys || []).forEach((key) => blockedKeys.add(key));
+      (group.words || []).forEach((word) => {
+        const normalized = normalizeFoodText(word);
+        if (normalized) blockedWords.add(normalized);
+      });
+      (group.tags || []).forEach((tag) => {
+        const normalized = normalizeFoodText(tag);
+        if (normalized) blockedTags.add(normalized);
+      });
+    });
+  });
+
+  return { blockedKeys, blockedWords, blockedTags };
 }
 
 function avoidOptionForValue(value) {
@@ -387,18 +489,16 @@ function foodTextContainsAvoidAlias(text, alias) {
 
 function foodTextMatchesDislikes(text, dislikes = state.foodDislikes) {
   const normalizedText = normalizeFoodText(text);
-  return selectedDislikeOptions(dislikes).some((option) => (
-    avoidAliasesForSelection(option.label).some((alias) => foodTextContainsAvoidAlias(normalizedText, alias))
-  ));
+  const avoidRules = buildAvoidRules(dislikes);
+  return [...avoidRules.blockedWords].some((word) => foodTextContainsAvoidAlias(normalizedText, word));
 }
 
 function ingredientMatchesDislikes(key, dislikes = state.foodDislikes) {
+  const avoidRules = buildAvoidRules(dislikes);
+  if (avoidRules.blockedKeys.has(key)) return true;
   const product = APP_PRODUCTS[key];
   const productText = normalizeFoodText(`${key} ${product ? product.name : ""} ${product ? product.unit : ""}`);
-  return selectedDislikeOptions(dislikes).some((option) => {
-    if ((option.ingredientKeys || []).includes(key)) return true;
-    return foodTextMatchesDislikes(productText, [option.label]);
-  });
+  return [...avoidRules.blockedWords].some((word) => foodTextContainsAvoidAlias(productText, word));
 }
 
 function shoppingItemMatchesDislikes(item, dislikes = state.foodDislikes) {
@@ -413,7 +513,27 @@ function shoppingItemMatchesDislikes(item, dislikes = state.foodDislikes) {
 }
 
 function recipeContainsDislikedFood(recipe, dislikes = state.foodDislikes) {
-  return recipe.ingredients.some((ing) => ingredientMatchesDislikes(ing.key, dislikes));
+  if (!recipe) return false;
+  return recipeMatchesAvoidRules(recipe, buildAvoidRules(dislikes));
+}
+
+function recipeMatchesAvoidRules(recipe, avoidRules) {
+  if (!recipe) return false;
+  const recipeTags = (recipe.tags || []).map(normalizeFoodText);
+  const recipeText = [
+    recipe.name,
+    ...(recipe.tags || []),
+    ...(recipe.ingredients || []).flatMap((ing) => {
+      const product = APP_PRODUCTS[ing.key];
+      return [ing.key, product?.name, product?.unit];
+    }),
+  ].filter(Boolean).map(normalizeFoodText).join(" ");
+
+  const hasBlockedIngredient = (recipe.ingredients || []).some((ing) => avoidRules.blockedKeys.has(ing.key));
+  const hasBlockedTag = recipeTags.some((tag) => avoidRules.blockedTags.has(tag) || avoidRules.blockedWords.has(tag));
+  const hasBlockedWord = [...avoidRules.blockedWords].some((word) => foodTextContainsAvoidAlias(recipeText, word));
+
+  return hasBlockedIngredient || hasBlockedTag || hasBlockedWord;
 }
 
 function selectedGoal(goals, ...ids) {
@@ -1294,7 +1414,7 @@ function planError(options = {}) {
   const selectedMeals = normalizeSelectedMeals(options.selectedMeals || state.selectedMeals);
   return {
     error: true,
-    message: PLAN_ERROR_MESSAGE,
+    message: options.message || PLAN_ERROR_MESSAGE,
     days: [],
     shoppingList: [],
     totalPrice: 0,
@@ -1328,7 +1448,8 @@ function generatePlan(options = {}) {
   };
 
   if (selectedMeals.some((slot) => pools[slot].length === 0)) {
-    return planError({ people, selectedDays, selectedMeals });
+    const message = normalizeAvoidSelections(state.foodDislikes).length ? AVOID_PLAN_ERROR_MESSAGE : PLAN_ERROR_MESSAGE;
+    return planError({ people, selectedDays, selectedMeals, message });
   }
 
   const attempts = Math.max(80, days * 35);
@@ -2516,24 +2637,41 @@ function runAvoidFoodAssertions() {
 
   state.foodDislikes = ["Hnetur"];
   console.assert(ingredientMatchesDislikes("peanut_butter"), "Hnetur should exclude hnetusmjör");
+  console.assert(recipeContainsDislikedFood(APP_RECIPES.find((recipe) => recipe.id === "peanut_noodles")), "Hnetur should remove peanut noodle recipes");
+
+  state.foodDislikes = ["Jarðhnetur"];
+  console.assert(ingredientMatchesDislikes("peanut_butter"), "Jarðhnetur should exclude hnetusmjör");
+  console.assert(recipeContainsDislikedFood(APP_RECIPES.find((recipe) => recipe.id === "tofu_peanut_rice")), "Jarðhnetur should remove peanut butter recipes");
 
   state.foodDislikes = ["Mjólk"];
+  console.assert(ingredientMatchesDislikes("milk"), "Mjólk should exclude milk");
   console.assert(ingredientMatchesDislikes("yogurt_skyr"), "Mjólk should exclude skyr");
   console.assert(ingredientMatchesDislikes("cheese"), "Mjólk should exclude ostur");
   console.assert(ingredientMatchesDislikes("butter"), "Mjólk should exclude smjör");
+  console.assert(ingredientMatchesDislikes("cottage_cheese"), "Mjólk should exclude cottage cheese");
 
   state.foodDislikes = ["Gluten"];
   console.assert(ingredientMatchesDislikes("bread"), "Gluten should exclude brauð");
   console.assert(ingredientMatchesDislikes("pasta"), "Gluten should exclude pasta");
   console.assert(ingredientMatchesDislikes("noodles"), "Gluten should exclude núðlur");
+  console.assert(ingredientMatchesDislikes("tortilla"), "Gluten should exclude tortilla");
 
   state.foodDislikes = ["Fiskur"];
   console.assert(ingredientMatchesDislikes("salmon"), "Fiskur should exclude lax");
   console.assert(ingredientMatchesDislikes("tuna"), "Fiskur should exclude túnfiskur");
+  console.assert(recipeContainsDislikedFood(APP_RECIPES.find((recipe) => recipe.id === "salmon_potatoes")), "Fiskur should remove Lax með kartöflum og spínati");
+  console.assert(recipeContainsDislikedFood(APP_RECIPES.find((recipe) => recipe.id === "tuna_pasta")), "Fiskur should remove Túnfisk pasta");
+  console.assert(recipeContainsDislikedFood(APP_RECIPES.find((recipe) => recipe.id === "tuna_cucumber_sandwich")), "Fiskur should remove Túnfisksamloka");
 
   state.foodDislikes = ["Soja"];
   console.assert(ingredientMatchesDislikes("soy_sauce"), "Soja should exclude sojasósa");
   console.assert(ingredientMatchesDislikes("tofu"), "Soja should exclude tófú");
+  console.assert(recipeContainsDislikedFood(APP_RECIPES.find((recipe) => recipe.id === "tofu_stir_fry")), "Soja should remove tofu recipes");
+
+  state.foodDislikes = ["Egg"];
+  console.assert(ingredientMatchesDislikes("eggs"), "Egg should exclude eggs");
+  console.assert(recipeContainsDislikedFood(APP_RECIPES.find((recipe) => recipe.id === "eggs_toast")), "Egg should remove eggs_toast");
+  console.assert(recipeContainsDislikedFood(APP_RECIPES.find((recipe) => recipe.id === "egg_fried_rice")), "Egg should remove egg_fried_rice");
 
   state.foodDislikes = previousDislikes;
 }
