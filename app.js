@@ -1595,7 +1595,7 @@ function renderHero() {
   };
 }
 
-function quizShell(stepLabel, title, bodyHtml, { nextLabel = "Áfram", nextDisabled = false, showBack = true } = {}) {
+function quizShell(stepLabel, title, bodyHtml, { nextLabel = "Áfram", nextDisabled = false, showBack = true, cardClass = "", bodyClass = "" } = {}) {
   clearInteractionState();
   const totalSteps = STEP_LABELS.length;
   const newProgressRatio = state.step >= 0 && state.step < totalSteps
@@ -1609,7 +1609,7 @@ function quizShell(stepLabel, title, bodyHtml, { nextLabel = "Áfram", nextDisab
   app.innerHTML = `
     <section class="quiz-section">
       <div class="wrap quiz-wrap">
-        <div class="quiz-card">
+        <div class="quiz-card ${cardClass}">
           <div class="quiz-inline-progress">
             <div class="quiz-inline-progress-text">${progressText}</div>
             <div class="quiz-inline-progress-track">
@@ -1617,7 +1617,7 @@ function quizShell(stepLabel, title, bodyHtml, { nextLabel = "Áfram", nextDisab
             </div>
           </div>
           <h3>${title}</h3>
-          <div class="quiz-body">
+          <div class="quiz-body ${bodyClass}">
             ${bodyHtml}
           </div>
           <div class="quiz-nav">
@@ -1775,7 +1775,10 @@ function renderDaysStep() {
     </div>
     <p id="scopeError" style="color:var(--rust); font-weight:600; min-height:1.2em; margin:12px 0 0;"></p>
   `;
-  quizShell("Skref 5 — Dagar og máltíðir", "Hvaða daga og máltíðir viltu plana?", body);
+  quizShell("Skref 5 — Dagar og máltíðir", "Hvaða daga og máltíðir viltu plana?", body, {
+    cardClass: "step-days-card",
+    bodyClass: "step-days-body",
+  });
 
   function refreshScopeStep() {
     state.selectedDays = normalizeSelectedDays(state.selectedDays);
@@ -2133,7 +2136,7 @@ function renderResults() {
     const dayId = normalizeSelectedDays(plan.selectedDays)[i];
     const label = WEEK_DAYS.find((item) => item.id === dayId)?.short || `D${i + 1}`;
     return `
-      <button class="mobile-day-tab ${state.activeResultDay === i ? "active" : ""}" type="button" data-result-day="${i}">
+      <button class="mobile-day-tab ${state.activeResultDay === i ? "active" : ""}" type="button" data-day-index="${i}">
         ${escapeHtml(label)}
       </button>
     `;
@@ -2227,17 +2230,17 @@ function renderResults() {
         ${replacementMessage ? `<div class="budget-note" style="margin:10px 0 16px;">${escapeHtml(replacementMessage)}</div>` : ""}
 
         <div class="mobile-only-result">
-          <div class="mobile-result-tabs" role="tablist" aria-label="Veldu niðurstöðu">
+          <div class="mobile-result-tabs" role="tablist" aria-label="Niðurstaða">
             <button class="mobile-result-tab ${state.resultTab === "plan" ? "active" : ""}" type="button" data-result-tab="plan">📅 Matarplan</button>
             <button class="mobile-result-tab ${state.resultTab === "grocery" ? "active" : ""}" type="button" data-result-tab="grocery">🛒 Innkaupalisti</button>
           </div>
-          <div class="mobile-result-panel ${state.resultTab === "plan" ? "active" : ""}" data-result-panel="plan">
+          <div class="mobile-result-panel ${state.resultTab === "plan" ? "active" : ""}" data-panel="plan" ${state.resultTab === "plan" ? "" : "hidden"}>
             <div class="mobile-day-tabs" aria-label="Veldu dag">
               ${resultDayTabs}
             </div>
             ${renderDayCard(plan.days[state.activeResultDay], state.activeResultDay, { mobile: true })}
           </div>
-          <div class="mobile-result-panel ${state.resultTab === "grocery" ? "active" : ""}" data-result-panel="grocery">
+          <div class="mobile-result-panel ${state.resultTab === "grocery" ? "active" : ""}" data-panel="grocery" ${state.resultTab === "grocery" ? "" : "hidden"}>
             ${groceryListHtml(true)}
           </div>
         </div>
@@ -2279,9 +2282,9 @@ function renderResults() {
       renderResults();
     };
   });
-  document.querySelectorAll("[data-result-day]").forEach((el) => {
+  document.querySelectorAll("[data-day-index]").forEach((el) => {
     el.onclick = () => {
-      state.activeResultDay = Number(el.dataset.resultDay);
+      state.activeResultDay = Number(el.dataset.dayIndex);
       renderResults();
     };
   });

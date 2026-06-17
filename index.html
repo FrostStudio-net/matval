@@ -506,67 +506,6 @@
   .modal .tag-pill{ display:inline-block; background: var(--moss); color:var(--paper); border-radius:999px; padding:4px 10px; font-size:0.74rem; font-weight:700; }
 
   @media (max-width: 760px){
-    .desktop-only-result{ display:none !important; }
-    .mobile-only-result{ display:block; }
-    .results-summary{ display:block; }
-    .result-actions{
-      display:grid;
-      grid-template-columns:1fr 1fr;
-      gap:10px;
-      margin:14px 0 8px;
-    }
-    .result-actions .btn{ width:100%; }
-    .mobile-result-tabs{
-      display:grid;
-      grid-template-columns:1fr 1fr;
-      border:1px solid var(--line);
-      border-radius:12px;
-      overflow:hidden;
-      margin:18px 0;
-      background:var(--card);
-    }
-    .mobile-result-tab{
-      min-height:48px;
-      border:0;
-      background:transparent;
-      font-family:var(--font-body);
-      font-weight:700;
-      color:var(--ink);
-      cursor:pointer;
-    }
-    .mobile-result-tab.active{
-      background:var(--moss);
-      color:var(--paper);
-    }
-    .mobile-result-panel{ display:none; }
-    .mobile-result-panel.active{ display:block; }
-    .mobile-day-tabs{
-      display:flex;
-      gap:8px;
-      overflow-x:auto;
-      padding-bottom:4px;
-      margin:14px 0;
-      -webkit-overflow-scrolling:touch;
-    }
-    .mobile-day-tab{
-      flex:0 0 auto;
-      border:1px solid var(--line);
-      background:var(--card);
-      border-radius:10px;
-      padding:10px 13px;
-      font-family:var(--font-body);
-      font-weight:700;
-      color:var(--ink);
-      cursor:pointer;
-    }
-    .mobile-day-tab.active{
-      background:var(--moss);
-      border-color:var(--moss);
-      color:var(--paper);
-    }
-    .mobile-day-card{ margin-bottom:18px; }
-    .mobile-day-card .meal-row{ display:block; padding:12px 0; }
-    .mobile-day-card .meal-type{ width:auto; margin-bottom:4px; }
     .mobile-grocery-summary{
       display:grid;
       gap:8px;
@@ -879,6 +818,112 @@
     .modal-actions .btn{ width:100%; }
   }
 
+  @media (max-width: 700px){
+    .step-days-card{
+      padding:14px 14px 0;
+      max-height:calc(100svh - 148px);
+      max-height:calc(100dvh - 148px);
+    }
+    .step-days-card .quiz-body{
+      padding-bottom:140px;
+    }
+    .step-days-card .quiz-inline-progress{
+      margin-bottom:12px;
+    }
+    .step-days-card .quiz-inline-progress-text{
+      font-size:0.78rem;
+      margin-bottom:8px;
+    }
+    .step-days-card h3{
+      font-size:1.55rem;
+      line-height:1.08;
+      margin-bottom:8px;
+    }
+    .step-days-card .quiz-body > p,
+    .step-days-card .scope-controls > p{
+      font-size:0.98rem;
+      line-height:1.28;
+      margin-bottom:10px !important;
+    }
+    .step-days-card .scope-controls{
+      gap:10px;
+    }
+    .step-days-card .scope-presets{
+      display:grid;
+      grid-template-columns:repeat(2, minmax(0, 1fr));
+      gap:8px;
+      margin-bottom:0;
+    }
+    .step-days-card .scope-presets .meal-action-btn{
+      min-height:42px;
+      padding:8px 10px;
+      font-size:0.92rem;
+      border-radius:10px;
+    }
+    .step-days-card .week-selector{
+      display:grid;
+      grid-template-columns:repeat(2, minmax(0, 1fr));
+      gap:8px;
+      border:0;
+      border-radius:0;
+      overflow:visible;
+      background:transparent;
+      margin-bottom:2px;
+    }
+    .step-days-card .day-cell{
+      min-height:44px;
+      padding:8px 10px;
+      border:1px solid var(--line);
+      border-right:1px solid var(--line);
+      border-radius:12px;
+      background:var(--paper);
+      flex-direction:row;
+      justify-content:center;
+      align-items:center;
+      gap:8px;
+      font-size:0.95rem;
+      line-height:1;
+    }
+    .step-days-card .day-cell:first-child,
+    .step-days-card .day-cell:last-child{
+      border-radius:12px;
+    }
+    .step-days-card .day-cell-check{
+      width:14px;
+      height:auto;
+      line-height:1;
+      font-size:0.8rem;
+    }
+    .step-days-card .day-cell.selected{
+      border-color:var(--moss);
+      background:rgba(63, 93, 69, 0.08);
+      color:var(--moss-dark);
+    }
+    .step-days-card .meal-selector{
+      display:grid;
+      grid-template-columns:repeat(3, minmax(0, 1fr));
+      gap:6px;
+      margin-bottom:8px;
+    }
+    .step-days-card .meal-selector .option{
+      min-height:44px;
+      width:100%;
+      padding:8px 6px;
+      border-radius:12px;
+      justify-content:center;
+      text-align:center;
+      font-size:0.82rem;
+      font-weight:700;
+      line-height:1.1;
+    }
+    .step-days-card .scope-helper{
+      display:none;
+    }
+    .quiz-nav{
+      min-height:78px;
+    }
+  }
+
   @media (max-width: 360px){
     .option-grid{ grid-template-columns:1fr; }
     .result-actions{ grid-template-columns:1fr; }
@@ -891,6 +936,98 @@
     .budget-display{ font-size:2rem; }
     .pantry-tag{ max-width:100%; overflow-wrap:anywhere; }
     .shopping-item{ grid-template-columns:20px minmax(0,1fr) auto; }
+  }
+
+  @media (min-width: 761px){
+    .mobile-only-result{ display:none !important; }
+    .results-summary.desktop-only-result{ display:grid; }
+  }
+
+  @media (max-width: 760px){
+    .desktop-only-result{ display:none !important; }
+    .mobile-only-result{
+      display:block;
+      width:100%;
+      max-width:100%;
+    }
+    .result-actions{
+      display:grid;
+      grid-template-columns:1fr 1fr !important;
+      gap:10px;
+      margin:18px 0;
+    }
+    .result-actions .settings-btn,
+    .result-actions .my-plans-btn{
+      display:none !important;
+    }
+    .mobile-result-tabs{
+      display:grid;
+      grid-template-columns:repeat(2, minmax(0, 1fr));
+      width:100%;
+      border:1px solid var(--line);
+      border-radius:14px;
+      overflow:hidden;
+      background:var(--card);
+      margin:16px 0 14px;
+    }
+    .mobile-result-tab{
+      min-height:52px;
+      border:0;
+      background:transparent;
+      color:var(--ink);
+      font-family:var(--font-body);
+      font-weight:700;
+      font-size:0.95rem;
+      cursor:pointer;
+    }
+    .mobile-result-tab.active{
+      background:var(--moss);
+      color:var(--paper);
+    }
+    .mobile-result-panel{
+      width:100%;
+      max-width:100%;
+      display:block;
+    }
+    .mobile-result-panel[hidden]{
+      display:none !important;
+    }
+    .mobile-day-tabs{
+      display:grid;
+      grid-template-columns:repeat(7, minmax(0, 1fr));
+      gap:6px;
+      width:100%;
+      max-width:100%;
+      overflow:visible;
+      margin:14px 0 16px;
+      padding:0;
+    }
+    .mobile-day-tab{
+      min-width:0;
+      width:100%;
+      min-height:46px;
+      border:1px solid var(--line);
+      background:var(--card);
+      border-radius:11px;
+      padding:0;
+      color:var(--ink);
+      font-family:var(--font-body);
+      font-weight:700;
+      font-size:clamp(0.78rem, 2.8vw, 0.92rem);
+      text-align:center;
+      white-space:nowrap;
+      cursor:pointer;
+    }
+    .mobile-day-tab.active{
+      background:var(--moss);
+      border-color:var(--moss);
+      color:var(--paper);
+    }
+    .mobile-result-panel .day-card,
+    .mobile-result-panel .shopping-list{
+      width:100%;
+      max-width:100%;
+    }
   }
 </style>
 </head>
