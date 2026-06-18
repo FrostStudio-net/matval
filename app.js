@@ -2450,12 +2450,7 @@ function renderMyPlans() {
                   <button class="meal-action-btn" data-duplicate-plan="${plan.id}">Afrita plan</button>
                   <button class="meal-action-btn" data-generate-from-plan="${plan.id}">Svipað plan</button>
                   <button class="meal-action-btn danger saved-plan-delete-btn" data-delete-plan="${plan.id}">
-                    <img
-                      src="/icons/icons8-delete-96.png"
-                      alt=""
-                      aria-hidden="true"
-                      class="delete-btn-icon"
-                    />
+                    ${iconImg("delete", "", "ui-icon delete-btn-icon")}
                     <span>Eyða plani</span>
                   </button>
                 </div>
@@ -2519,6 +2514,13 @@ function renderResults() {
   const mealsPerDay = mealSlotsForPlan(plan).length;
   const perMeal = plan.totalPrice / Math.max(1, plan.numDays * mealsPerDay);
   const estimatedCount = plan.shoppingList.filter((item) => item.isEstimated || item.estimated).length;
+  const realKronanCount = plan.shoppingList.filter((item) => item.source === "kronan" && item.isEstimated === false).length;
+  const shoppingSourceNote = (() => {
+    if (state.pricingStatus === "loading") return "Sæki verð frá Krónunni...";
+    if (realKronanCount > 0 && estimatedCount > 0) return "Sum verð eru áætluð";
+    if (realKronanCount > 0) return "Verð frá Krónunni";
+    return "Áætlað verð";
+  })();
   const pricingMessage = state.pricingStatus === "loading"
     ? "Sæki verð frá Krónunni..."
     : state.pricingStatus === "error"
@@ -2639,7 +2641,7 @@ function renderResults() {
         <div class="mobile-grocery-summary">
           <div>
             <h3>Innkaupalisti — Krónan</h3>
-            <div class="shopping-source-note">Verð sótt frá Krónunni þegar hægt er.</div>
+            <div class="shopping-source-note">${shoppingSourceNote}</div>
           </div>
           <div class="mobile-grocery-total mono">${formatKr(plan.totalPrice)}</div>
           <div class="mobile-grocery-count">${plan.shoppingList.length} ${plan.shoppingList.length === 1 ? "vara" : "vörur"}</div>
@@ -2647,7 +2649,7 @@ function renderResults() {
         </div>
       ` : `
         <h3>Innkaupalisti — Krónan</h3>
-        <div class="shopping-source-note">Verð sótt frá Krónunni þegar hægt er.</div>
+        <div class="shopping-source-note">${shoppingSourceNote}</div>
         <button class="meal-action-btn refresh-prices-btn" type="button" style="margin:8px 0 12px;">Uppfæra verð</button>
       `}
       ${pricingMessage ? `<div class="budget-note" style="margin-bottom:10px;">${pricingMessage}</div>` : ""}
