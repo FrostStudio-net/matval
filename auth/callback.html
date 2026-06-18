@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="is">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Innskráning — Matval</title>
+<link rel="icon" type="image/x-icon" href="/public/logo_cropped.png">
+<style>
+  body{
+    min-height:100dvh; margin:0; display:grid; place-items:center;
+    background:#F6F1E6; color:#1F2A24;
+    font-family:system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+  }
+  main{
+    width:min(420px, calc(100% - 32px)); padding:28px; text-align:center;
+    border:1px solid #D8CFBE; border-radius:24px; background:#FFFDF7;
+    box-shadow:0 22px 60px rgba(18,59,38,0.10);
+  }
+  img{ width:72px; height:72px; object-fit:contain; margin-bottom:14px; }
+  h1{ margin:0 0 8px; color:#244f35; font-family:Georgia, serif; }
+  p{ margin:0; color:rgba(31,45,37,0.68); line-height:1.5; }
+</style>
+</head>
+<body>
+<main>
+  <img src="/public/logo_cropped.png" alt="" />
+  <h1>Augnablik</h1>
+  <p>Við klárum innskráningu og sendum þig aftur í Matval.</p>
+</main>
+<script src="/public/js/supabaseConfig.js"></script>
+<script type="module">
+  import { getCurrentUser } from "/public/js/auth.js";
+
+  try {
+    await getCurrentUser();
+    window.location.replace("/");
+  } catch (error) {
+    console.error("[Supabase callback] failed:", error);
+    window.location.replace("/");
+  }
+</script>
+</body>
+</html>

@@ -13,6 +13,10 @@ The Krónan access token must only live on the backend. Never put `KRONAN_API_TO
 - `api/kronan-match-products.js` - Vercel serverless product matching endpoint
 - `api/kronan-debug.js` - Vercel serverless debug endpoint
 - `kronan-product-mapping.js` - ingredient-to-product matching rules
+- `public/js/supabaseConfig.js` - public Supabase URL/anon-key config for optional auth
+- `public/js/auth.js` - Supabase Auth helpers
+- `public/js/cloudPlans.js` - cloud saved-plan helpers
+- `supabase/schema.sql` - Supabase tables and RLS policies
 - `public/` - static image/logo assets
 - `tests/` - Node regression tests for Krónan matching
 
@@ -31,9 +35,25 @@ KRONAN_API_TOKEN=
 KRONAN_API_BASE_URL=https://api.kronan.is
 HOST=0.0.0.0
 PORT=8000
+SUPABASE_URL=
+SUPABASE_ANON_KEY=
 ```
 
 Do not commit `.env`. It contains secrets and is ignored by git.
+
+## Optional Supabase Auth
+
+Matval does not require login to generate a meal plan. Users can create plans first; localStorage remains the fallback for guests.
+
+To enable cloud-saved plans across devices:
+
+1. Create a Supabase project.
+2. Run `supabase/schema.sql` in the Supabase SQL editor.
+3. Enable Google Auth in Supabase.
+4. Add your public project URL and anon key in `public/js/supabaseConfig.js`.
+5. Never put a Supabase service-role key in frontend code.
+
+When logged in, `Mín plön` reads from `meal_plans`. When logged out, it reads from localStorage.
 
 ## Local Development
 
@@ -69,6 +89,13 @@ Required Vercel environment variables:
 
 - `KRONAN_API_TOKEN`
 - `KRONAN_API_BASE_URL` set to `https://api.kronan.is`
+
+Optional Supabase values:
+
+- `SUPABASE_URL`
+- `SUPABASE_ANON_KEY`
+
+For the current static frontend, also mirror the public Supabase URL and anon key in `public/js/supabaseConfig.js` before deploy.
 
 Do not add `HOST` or `PORT` in Vercel unless you have a specific reason. Those are for local `server.js`.
 

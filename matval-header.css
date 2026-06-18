@@ -1,0 +1,45 @@
+.header-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  min-height: 36px;
+  border: 1px solid var(--line);
+  background: transparent;
+  color: var(--ink);
+  -webkit-text-fill-color: var(--ink);
+  border-radius: 999px;
+  padding: 7px 14px;
+  font-family: var(--font-body);
+  font-size: 1rem;
+  line-height: 1.2;
+  font-weight: 600;
+  text-decoration: none;
+  cursor: pointer;
+  appearance: none;
+  -webkit-appearance: none;
+}
+
+.header-link:hover {
+  border-color: var(--moss);
+  color: var(--moss-dark, var(--dark-green, #244f35));
+  -webkit-text-fill-color: var(--moss-dark, var(--dark-green, #244f35));
+  text-decoration: none;
+}
+
+.header-link:focus {
+  outline: none;
+}
+
+.header-link:focus-visible {
+  outline: 2px solid var(--moss);
+  outline-offset: 3px;
+}
+
+@media (max-width: 700px) {
+  .header-link {
+    min-height: 34px;
+    padding: 7px 12px;
+    font-size: 0.9rem;
+  }
+}

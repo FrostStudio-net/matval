@@ -40,6 +40,9 @@ const ICONS = {
   checkmarkActive: "/public/icons/icons8-checkmark-active-96.png",
   fire: "/public/icons/icons8-fire-96.png",
   delete: "/public/icons/icons8-delete-96.png",
+  google: "/public/icons/icons8-google.svg",
+  email: "/public/icons/icons8-email-96.png",
+  send: "/public/icons/icons8-send-96.png",
 };
 
 function iconImg(iconKey, alt = "", className = "ui-icon") {
@@ -121,6 +124,7 @@ const PANTRY_ALIASES = {
 };
 const FOOD_DISLIKES_STORAGE_KEY = "matval.foodDislikes.v1";
 const SAVED_PLANS_STORAGE_KEY = "matval.savedPlans.v1";
+const LATEST_PLAN_STORAGE_KEY = "matvalLatestPlan";
 const AVOID_FOOD_SUGGESTIONS = [
   "Hnetur",
   "Jarðhnetur",
@@ -267,6 +271,16 @@ const state = {
   pricingError: null,
   replacementMessage: null,
   savedPlanNotice: null,
+  savePromptDismissed: false,
+  authModalVisible: false,
+  authEmailVisible: false,
+  authEmail: "",
+  authMessage: null,
+  currentUser: null,
+  cloudPlans: [],
+  cloudPlansLoading: false,
+  cloudPlansLoaded: false,
+  cloudPlansError: null,
   isGeneratingPlan: false,
   generationError: null,
   previousProgressRatio: 0,
@@ -548,6 +562,7 @@ function resetResultViewState() {
   state.resultTab = "plan";
   state.activeResultDay = 0;
   state.savedPlanNotice = null;
+  state.savePromptDismissed = false;
 }
 
 // ---------- Plan generation ----------
@@ -1489,6 +1504,97 @@ function writeSavedPlans(plans) {
   localStorage.setItem(SAVED_PLANS_STORAGE_KEY, JSON.stringify(plans));
 }
 
+function matvalAuth() {
+  return IS_BROWSER ? window.MatvalAuth || null : null;
+}
+
+function matvalCloudPlans() {
+  return IS_BROWSER ? window.MatvalCloudPlans || null : null;
+}
+
+function supabaseAvailable() {
+  return Boolean(matvalAuth()?.isSupabaseConfigured && matvalCloudPlans()?.isSupabaseConfigured);
+}
+
+function activeSavedPlans() {
+  return state.currentUser ? state.cloudPlans : loadSavedPlans();
+}
+
+function writeLatestLocalPlan(plan) {
+  if (typeof localStorage === "undefined" || !plan || plan.error) return;
+  const snapshot = createPlanSnapshot(plan);
+  localStorage.setItem(LATEST_PLAN_STORAGE_KEY, JSON.stringify(snapshot));
+}
+
+async function refreshCloudPlans({ force = false } = {}) {
+  const cloud = matvalCloudPlans();
+  if (!state.currentUser || !cloud?.getCloudPlans || (!force && state.cloudPlansLoaded)) return state.cloudPlans;
+
+  state.cloudPlansLoading = true;
+  state.cloudPlansError = null;
+  try {
+    state.cloudPlans = await cloud.getCloudPlans();
+    state.cloudPlansLoaded = true;
+  } catch (error) {
+    console.error("[Supabase plans] could not load cloud plans:", error);
+    state.cloudPlansError = "Náði ekki að sækja vistuð plön úr Supabase.";
+  } finally {
+    state.cloudPlansLoading = false;
+  }
+  return state.cloudPlans;
+}
+
+async function migratePendingLocalPlanToCloud() {
+  if (!state.currentUser || localStorage.getItem("matval.pendingCloudSave") !== "1") return;
+  const cloud = matvalCloudPlans();
+  if (!cloud?.migrateLatestLocalPlanToCloud) return;
+
+  try {
+    const migrated = await cloud.migrateLatestLocalPlanToCloud();
+    localStorage.removeItem("matval.pendingCloudSave");
+    if (migrated) {
+      await refreshCloudPlans({ force: true });
+      state.savedPlanNotice = "Planið var vistað á aðganginn þinn";
+    }
+  } catch (error) {
+    console.error("[Supabase plans] pending migration failed:", error);
+    state.authMessage = "Náði ekki að vista núverandi plan á aðganginn.";
+  }
+}
+
+async function initializeAuthState() {
+  const auth = matvalAuth();
+  if (!auth) return;
+
+  try {
+    state.currentUser = await auth.getCurrentUser();
+    if (state.currentUser) {
+      await refreshCloudPlans({ force: true });
+      await migratePendingLocalPlanToCloud();
+    }
+  } catch (error) {
+    console.warn("[Supabase auth] startup check failed:", error);
+  }
+
+  auth.listenToAuthChanges(async (user) => {
+    state.currentUser = user;
+    state.cloudPlansLoaded = false;
+    if (user) {
+      await refreshCloudPlans({ force: true });
+      await migratePendingLocalPlanToCloud();
+      if (state.authModalVisible) {
+        state.authModalVisible = false;
+        state.authMessage = null;
+      }
+    } else {
+      state.cloudPlans = [];
+      state.cloudPlansLoaded = false;
+    }
+    if (state.currentView === "savedPlans") renderMyPlans();
+    if (state.currentView === "results") renderResults();
+  });
+}
+
 function stableStringify(value) {
   if (Array.isArray(value)) return `[${value.map(stableStringify).join(",")}]`;
   if (value && typeof value === "object") {
@@ -1674,13 +1780,60 @@ function saveCurrentPlan() {
     };
   }
   writeSavedPlans([snapshot, ...savedPlans]);
+  localStorage.setItem(LATEST_PLAN_STORAGE_KEY, JSON.stringify(snapshot));
   state.savedPlanNotice = "Plan vistað";
   console.log("[Saved plans] saved", snapshot);
   return { status: "saved", snapshot };
 }
 
+async function saveCurrentPlanToCloud() {
+  if (!state.plan || state.plan.error) return null;
+  const snapshot = createPlanSnapshot(state.plan);
+  const duplicatePlan = findSavedPlanByHash(snapshot.planHash, state.cloudPlans);
+  console.log("[Supabase plans] save attempt", {
+    cloudPlansLength: state.cloudPlans.length,
+    currentPlanHash: snapshot.planHash,
+    matchingSavedPlanId: duplicatePlan?.id || null,
+  });
+
+  if (duplicatePlan) {
+    state.savedPlanNotice = "Þetta plan er nú þegar vistað";
+    return { status: "duplicate", snapshot: duplicatePlan };
+  }
+
+  const cloud = matvalCloudPlans();
+  if (!cloud?.savePlanToCloud) throw new Error("Cloud plans are not available");
+  const savedPlan = await cloud.savePlanToCloud(snapshot);
+  state.cloudPlans = [savedPlan, ...state.cloudPlans];
+  state.cloudPlansLoaded = true;
+  state.savedPlanNotice = "Þetta plan er nú vistað";
+  return { status: "saved", snapshot: savedPlan };
+}
+
+async function handleSaveCurrentPlan() {
+  if (!state.plan || state.plan.error) return null;
+
+  if (state.currentUser) {
+    try {
+      return await saveCurrentPlanToCloud();
+    } catch (error) {
+      console.error("[Supabase plans] cloud save failed, keeping local fallback:", error);
+      state.authMessage = "Náði ekki að vista í skýið. Planið er vistað á þessu tæki.";
+      return saveCurrentPlan();
+    }
+  }
+
+  const result = saveCurrentPlan();
+  state.authModalVisible = true;
+  return result;
+}
+
+function findSavedPlanById(savedPlanId) {
+  return activeSavedPlans().find((plan) => plan.id === savedPlanId || plan.cloudId === savedPlanId);
+}
+
 function openSavedPlan(savedPlanId) {
-  const savedPlan = loadSavedPlans().find((plan) => plan.id === savedPlanId);
+  const savedPlan = findSavedPlanById(savedPlanId);
   if (!savedPlan) return;
   state.goals = [...(savedPlan.goals || [])];
   state.pantry = [...(savedPlan.pantry || [])];
@@ -1705,8 +1858,8 @@ function openSavedPlan(savedPlanId) {
   hydrateKronanPrices(state.plan);
 }
 
-function duplicateSavedPlan(savedPlanId) {
-  const savedPlan = loadSavedPlans().find((plan) => plan.id === savedPlanId);
+async function duplicateSavedPlan(savedPlanId) {
+  const savedPlan = findSavedPlanById(savedPlanId);
   if (!savedPlan) return;
   const now = new Date().toISOString();
   const duplicate = {
@@ -1716,17 +1869,37 @@ function duplicateSavedPlan(savedPlanId) {
     updatedAt: now,
     title: `${savedPlan.title || "Plan"} afrit`,
   };
-  writeSavedPlans([duplicate, ...loadSavedPlans()]);
+  if (state.currentUser && matvalCloudPlans()?.savePlanToCloud) {
+    try {
+      const cloudDuplicate = await matvalCloudPlans().savePlanToCloud(duplicate);
+      state.cloudPlans = [cloudDuplicate, ...state.cloudPlans];
+    } catch (error) {
+      console.error("[Supabase plans] duplicate failed:", error);
+      state.cloudPlansError = "Náði ekki að afrita plan.";
+    }
+  } else {
+    writeSavedPlans([duplicate, ...loadSavedPlans()]);
+  }
   renderMyPlans();
 }
 
-function deleteSavedPlan(savedPlanId) {
-  writeSavedPlans(loadSavedPlans().filter((plan) => plan.id !== savedPlanId));
+async function deleteSavedPlan(savedPlanId) {
+  if (state.currentUser && matvalCloudPlans()?.deleteCloudPlan) {
+    try {
+      await matvalCloudPlans().deleteCloudPlan(savedPlanId);
+      state.cloudPlans = state.cloudPlans.filter((plan) => plan.id !== savedPlanId && plan.cloudId !== savedPlanId);
+    } catch (error) {
+      console.error("[Supabase plans] delete failed:", error);
+      state.cloudPlansError = "Náði ekki að eyða plani.";
+    }
+  } else {
+    writeSavedPlans(loadSavedPlans().filter((plan) => plan.id !== savedPlanId));
+  }
   renderMyPlans();
 }
 
 function generateFromSavedPlan(savedPlanId) {
-  const savedPlan = loadSavedPlans().find((plan) => plan.id === savedPlanId);
+  const savedPlan = findSavedPlanById(savedPlanId);
   if (!savedPlan) return;
   state.goals = [...(savedPlan.goals || [])];
   state.pantry = [...(savedPlan.pantry || [])];
@@ -1991,6 +2164,7 @@ async function hydrateKronanPrices(plan) {
       .filter((item) => !shoppingItemMatchesDislikes(item));
 
     recalculatePlanTotal(plan);
+    writeLatestLocalPlan(plan);
     console.log("[Main app Krónan] final rendered shopping list:", plan.shoppingList);
     console.log("[TRACE]", traceId, "finalShoppingListUsedForRender", plan.shoppingList);
     state.pricingStatus = "ready";
@@ -2001,6 +2175,7 @@ async function hydrateKronanPrices(plan) {
     if (requestId !== pricingRequest.id) return;
 
     markPlanPricesEstimated(plan);
+    writeLatestLocalPlan(plan);
     console.log("[Main app Krónan] final rendered shopping list:", plan.shoppingList);
     console.log("[TRACE]", traceId, "finalShoppingListUsedForRender", plan.shoppingList);
     if (isCurrentResultPlan(plan)) renderResults();
@@ -2011,6 +2186,109 @@ async function hydrateKronanPrices(plan) {
 
 function isCurrentResultPlan(plan) {
   return state.currentView === "results" && state.step === 7 && state.plan === plan;
+}
+
+function renderAuthModal() {
+  if (!IS_BROWSER) return;
+  let root = document.getElementById("authModalRoot");
+  if (!root) {
+    document.body.insertAdjacentHTML("beforeend", `<div id="authModalRoot"></div>`);
+    root = document.getElementById("authModalRoot");
+  }
+
+  if (!state.authModalVisible) {
+    root.innerHTML = "";
+    return;
+  }
+
+  const supabaseConfigured = supabaseAvailable();
+  root.innerHTML = `
+    <div class="auth-modal-overlay is-visible" role="presentation">
+      <section class="auth-modal" role="dialog" aria-modal="true" aria-labelledby="authModalTitle">
+        <h3 id="authModalTitle">Vistaðu planið þitt</h3>
+        <p>Búðu til aðgang til að opna matarplanið og innkaupalistann aftur síðar.</p>
+        <div class="auth-modal-actions">
+          <button class="btn auth-provider-btn" id="googleLoginBtn" type="button">
+            ${iconImg("google", "", "ui-icon auth-btn-icon")}
+            <span>Halda áfram með Google</span>
+          </button>
+          <button class="btn secondary auth-provider-btn" id="showEmailLoginBtn" type="button">
+            ${iconImg("email", "", "ui-icon auth-btn-icon")}
+            <span>Vista með netfangi</span>
+          </button>
+          ${state.authEmailVisible ? `
+            <div class="auth-email-row">
+              <input id="authEmailInput" type="email" autocomplete="email" placeholder="netfang@dæmi.is" value="${escapeHtml(state.authEmail)}">
+              <button class="btn auth-provider-btn" id="sendMagicLinkBtn" type="button">
+                ${iconImg("send", "", "ui-icon auth-btn-icon")}
+                <span>Senda</span>
+              </button>
+            </div>
+          ` : ""}
+          <button class="btn ghost" id="skipAuthBtn" type="button">Ekki núna</button>
+        </div>
+        <div class="auth-modal-note">
+          ${state.authMessage ? escapeHtml(state.authMessage) : supabaseConfigured
+            ? "Innskráning er valfrjáls. Planið helst vistað á þessu tæki ef þú velur Ekki núna."
+            : "Supabase er ekki stillt ennþá. Settu SUPABASE_URL og SUPABASE_ANON_KEY í /public/js/supabaseConfig.js."}
+        </div>
+      </section>
+    </div>
+  `;
+
+  document.getElementById("skipAuthBtn").onclick = () => {
+    state.authModalVisible = false;
+    state.authEmailVisible = false;
+    state.authMessage = null;
+    state.savePromptDismissed = true;
+    render();
+  };
+
+  document.getElementById("googleLoginBtn").onclick = async () => {
+    try {
+      if (!matvalAuth()?.signInWithGoogle) throw new Error("Supabase auth is not loaded.");
+      localStorage.setItem("matval.pendingCloudSave", state.plan ? "1" : "");
+      await matvalAuth().signInWithGoogle();
+    } catch (error) {
+      console.error("[Supabase auth] Google login failed:", error);
+      state.authMessage = error.message || "Innskráning mistókst.";
+      renderAuthModal();
+    }
+  };
+
+  document.getElementById("showEmailLoginBtn").onclick = () => {
+    state.authEmailVisible = true;
+    renderAuthModal();
+  };
+
+  const emailInput = document.getElementById("authEmailInput");
+  if (emailInput) {
+    emailInput.oninput = () => {
+      state.authEmail = emailInput.value;
+    };
+  }
+
+  const sendMagicLinkBtn = document.getElementById("sendMagicLinkBtn");
+  if (sendMagicLinkBtn) {
+    sendMagicLinkBtn.onclick = async () => {
+      try {
+        if (!state.authEmail.trim()) {
+          state.authMessage = "Sláðu inn netfang fyrst.";
+          renderAuthModal();
+          return;
+        }
+        if (!matvalAuth()?.signInWithEmail) throw new Error("Supabase auth is not loaded.");
+        localStorage.setItem("matval.pendingCloudSave", state.plan ? "1" : "");
+        await matvalAuth().signInWithEmail(state.authEmail.trim());
+        state.authMessage = "Við sendum hlekk í tölvupóstinn þinn.";
+        renderAuthModal();
+      } catch (error) {
+        console.error("[Supabase auth] magic link failed:", error);
+        state.authMessage = error.message || "Náði ekki að senda innskráningarhlekk.";
+        renderAuthModal();
+      }
+    };
+  }
 }
 
 let app = null;
@@ -2041,6 +2319,10 @@ function initApp() {
   runDietaryAssertions();
   runAvoidFoodAssertions();
   runWeeklyPlanningAssertions();
+  initializeAuthState().then(() => {
+    if (state.currentView === "savedPlans") renderMyPlans();
+    if (state.currentView === "results") renderResults();
+  });
   state.step = -1;
   state.currentView = "home";
   state.homeFresh = true;
@@ -2098,6 +2380,7 @@ function render() {
   else if (state.step === 6) renderDislikesStep();
   else if (state.step === 7) renderResults();
   else if (state.step === 8) renderMyPlans();
+  renderAuthModal();
 }
 
 function renderHero() {
@@ -2134,7 +2417,7 @@ function renderHero() {
       </div>
     </section>
 
-    <section class="alt">
+    <section class="alt" id="hvernig-virkar-thetta">
       <div class="wrap">
         <div class="section-head">
           <div class="eyebrow">Afhverju Matval</div>
@@ -2156,7 +2439,7 @@ function renderHero() {
     lastPlanBtn.onclick = () => { navigateToStep(7); };
   }
   document.getElementById("learnBtn").onclick = () => {
-    document.querySelector("section.alt").scrollIntoView({ behavior: "smooth" });
+    document.getElementById("hvernig-virkar-thetta").scrollIntoView({ behavior: "smooth" });
   };
 }
 
@@ -2598,6 +2881,12 @@ function renderDislikesStep() {
 
       state.plan = plan;
       resetResultViewState();
+      if (!plan.error) {
+        writeLatestLocalPlan(plan);
+        state.authModalVisible = false;
+        state.authEmailVisible = false;
+        state.authMessage = null;
+      }
       state.step = 7;
       state.currentView = "results";
       if (plan.error) state.pricingStatus = "idle";
@@ -2637,8 +2926,14 @@ function formatDate(value) {
 function renderMyPlans() {
   clearInteractionState();
   setQuizActive(false);
-  const savedPlans = loadSavedPlans();
+  if (state.currentUser && !state.cloudPlansLoaded && !state.cloudPlansLoading) {
+    refreshCloudPlans({ force: true }).then(() => {
+      if (state.currentView === "savedPlans") renderMyPlans();
+    });
+  }
+  const savedPlans = activeSavedPlans();
   const stats = savedPlanStats(savedPlans);
+  const usingCloudPlans = Boolean(state.currentUser);
 
   app.innerHTML = `
     <section>
@@ -2646,13 +2941,25 @@ function renderMyPlans() {
         <div class="section-head">
           <div class="eyebrow">Vistaðar vikur</div>
           <h2>Mín plön</h2>
-          <p>Vistaðar á þessu tæki. Engin skráning eða bakendi ennþá.</p>
+          <p>${usingCloudPlans ? "Vistuð á aðgangnum þínum og aðgengileg milli tækja." : "Vistaðar á þessu tæki."}</p>
         </div>
 
         <div class="result-actions">
           <button class="btn ghost" id="backToPlannerBtn">← Til baka</button>
           <button class="btn" id="newPlanBtn">Búa til nýtt plan</button>
+          ${usingCloudPlans ? `<button class="btn secondary" id="signOutBtn">Skrá út</button>` : ""}
         </div>
+
+        ${!usingCloudPlans ? `
+          <div class="quiz-card" style="margin-bottom:18px;">
+            <h3>Skráðu þig inn til að vista plön milli tækja</h3>
+            <p style="color:var(--muted); margin-bottom:16px;">Þú getur áfram vistað plön á þessu tæki án aðgangs.</p>
+            <button class="btn" id="openAuthModalBtn">Vista milli tækja</button>
+          </div>
+        ` : ""}
+
+        ${state.cloudPlansLoading ? `<div class="budget-note" style="margin-bottom:14px;">Sæki vistuð plön...</div>` : ""}
+        ${state.cloudPlansError ? `<div class="budget-note" style="margin-bottom:14px;">${escapeHtml(state.cloudPlansError)}</div>` : ""}
 
         <div class="saved-stats">
           <div class="stat-card"><span>Vistuð plön</span><strong>${stats.plansSaved}</strong></div>
@@ -2701,6 +3008,23 @@ function renderMyPlans() {
   document.getElementById("newPlanBtn").onclick = () => {
     startNewWizard();
   };
+  const openAuthModalBtn = document.getElementById("openAuthModalBtn");
+  if (openAuthModalBtn) {
+    openAuthModalBtn.onclick = () => {
+      state.authModalVisible = true;
+      renderMyPlans();
+    };
+  }
+  const signOutBtn = document.getElementById("signOutBtn");
+  if (signOutBtn) {
+    signOutBtn.onclick = async () => {
+      try {
+        await matvalAuth()?.signOut();
+      } catch (error) {
+        console.error("[Supabase auth] sign out failed:", error);
+      }
+    };
+  }
   document.querySelectorAll("[data-open-plan]").forEach((el) => {
     el.onclick = () => openSavedPlan(el.dataset.openPlan);
   });
@@ -2713,6 +3037,7 @@ function renderMyPlans() {
   document.querySelectorAll("[data-generate-from-plan]").forEach((el) => {
     el.onclick = () => generateFromSavedPlan(el.dataset.generateFromPlan);
   });
+  renderAuthModal();
 }
 
 function renderResults() {
@@ -2756,11 +3081,9 @@ function renderResults() {
       : null;
   const replacementMessage = state.replacementMessage;
   const currentPlanHash = createPlanHash(plan);
-  const currentPlanSaved = isPlanHashSaved(currentPlanHash);
-  const saveButtonContent = currentPlanSaved
-    ? `${iconImg("checkmarkActive", "", "ui-icon save-check-icon")} <span>Vistað</span>`
-    : "Vista plan";
+  const currentPlanSaved = isPlanHashSaved(currentPlanHash, activeSavedPlans());
   const savedPlanNotice = state.savedPlanNotice;
+  const showSaveCard = !currentPlanSaved && !state.savePromptDismissed;
   const planTabActive = state.resultTab === "plan";
   const groceryTabActive = state.resultTab === "grocery";
   const shoppingDisplayName = (item) => {
@@ -2910,10 +3233,19 @@ function renderResults() {
 
         <div class="result-actions">
           <button class="btn ghost" id="restartBtn">← Breyta vali</button>
-          <div class="save-action-wrap">
-            <button class="btn ${currentPlanSaved ? "saved" : ""}" id="savePlanBtn">${saveButtonContent}</button>
-          </div>
         </div>
+        ${showSaveCard ? `
+          <div class="result-save-card">
+            <div>
+              <h3>Viltu opna þetta plan síðar?</h3>
+              <p>Vistaðu matarplanið og innkaupalistann svo þú getir komið aftur að því í símanum eða tölvunni.</p>
+            </div>
+            <div class="result-save-card-actions">
+              <button class="btn" id="savePlanPromptBtn" type="button">Vista plan</button>
+              <button class="btn ghost" id="dismissSavePromptBtn" type="button">Ekki núna</button>
+            </div>
+          </div>
+        ` : ""}
         ${savedPlanNotice ? `
           <div class="save-toast" role="status" aria-live="polite">
             ${iconImg("checkmarkActive", "", "ui-icon save-toast-icon")}
@@ -2960,17 +3292,36 @@ function renderResults() {
   `;
 
   document.getElementById("restartBtn").onclick = () => { navigateToStep(0); };
-  document.getElementById("savePlanBtn").onclick = () => {
-    const result = saveCurrentPlan();
-    if (!result) return;
-    renderResults();
-    window.setTimeout(() => {
-      if (state.savedPlanNotice) {
-        state.savedPlanNotice = null;
+  const savePlanPromptBtn = document.getElementById("savePlanPromptBtn");
+  if (savePlanPromptBtn) {
+    savePlanPromptBtn.onclick = async () => {
+      if (state.currentUser) {
+        const result = await handleSaveCurrentPlan();
+        if (!result) return;
+        state.savePromptDismissed = true;
         renderResults();
+        window.setTimeout(() => {
+          if (state.savedPlanNotice) {
+            state.savedPlanNotice = null;
+            renderResults();
+          }
+        }, 3800);
+        return;
       }
-    }, 3800);
-  };
+
+      state.authModalVisible = true;
+      state.authEmailVisible = false;
+      state.authMessage = null;
+      renderAuthModal();
+    };
+  }
+  const dismissSavePromptBtn = document.getElementById("dismissSavePromptBtn");
+  if (dismissSavePromptBtn) {
+    dismissSavePromptBtn.onclick = () => {
+      state.savePromptDismissed = true;
+      renderResults();
+    };
+  }
   const viewSavedPlansBtn = document.getElementById("viewSavedPlansBtn");
   if (viewSavedPlansBtn) {
     viewSavedPlansBtn.onclick = () => {
@@ -3012,6 +3363,7 @@ function renderResults() {
       replaceMeal(Number(el.dataset.replaceDay), el.dataset.replaceSlot);
     };
   });
+  renderAuthModal();
 }
 
 const MODAL_TAG_PRIORITY = ["cheap", "healthy", "quick", "high_protein", "protein", "dairy_free", "dairyfree", "vegan", "vegetarian", "family"];

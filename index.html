@@ -101,12 +101,6 @@
     height:100%; width:0; border-radius:999px; background:var(--moss);
     transition:width .2s ease;
   }
-  .header-link{
-    border:1px solid var(--line); background:transparent; color:var(--ink);
-    border-radius:999px; padding:7px 14px; font-family:var(--font-body);
-    font-weight:600; cursor:pointer;
-  }
-
   /* Hero */
   .hero{
     min-height:auto;
@@ -641,6 +635,17 @@
   .save-check-icon{ width:18px; height:18px; }
   .save-action-wrap{ display:inline-flex; align-items:center; }
   .save-action-wrap .btn{ width:100%; }
+  .result-save-card{
+    display:flex; align-items:center; justify-content:space-between; gap:18px;
+    margin:18px 0 22px; padding:18px 20px; border:1px solid rgba(63,93,69,0.16);
+    border-radius:18px; background:var(--card); box-shadow:0 14px 34px rgba(18,59,38,0.08);
+  }
+  .result-save-card h3{
+    margin:0 0 4px; color:var(--moss-dark); font-family:var(--font-heading);
+    font-size:1.35rem; line-height:1.05;
+  }
+  .result-save-card p{ margin:0; color:var(--muted); line-height:1.45; font-weight:600; }
+  .result-save-card-actions{ display:flex; gap:10px; flex-wrap:wrap; justify-content:flex-end; flex-shrink:0; }
   .save-toast{
     position:fixed; right:24px; bottom:calc(28px + env(safe-area-inset-bottom)); z-index:80;
     display:inline-flex; align-items:center; gap:10px; min-height:36px;
@@ -661,6 +666,40 @@
   }
   @media (prefers-reduced-motion: reduce){
     .save-toast{ animation:none; }
+  }
+  .auth-modal-overlay{
+    position:fixed; inset:0; z-index:85; display:none; align-items:center; justify-content:center;
+    padding:24px; background:#F6F1E6;
+  }
+  .auth-modal-overlay.is-visible{ display:flex; }
+  .auth-modal{
+    width:min(440px, 100%); border:1px solid rgba(36,79,53,0.14); border-radius:28px;
+    background:var(--card); box-shadow:0 28px 80px rgba(18,59,38,0.18); padding:28px;
+  }
+  .auth-modal h3{
+    margin:0 0 8px; color:var(--dark-green); font-family:var(--font-heading);
+    font-size:clamp(1.8rem, 5vw, 2.4rem); line-height:1;
+  }
+  .auth-modal p{ margin:0 0 18px; color:var(--muted); line-height:1.55; font-weight:600; }
+  .auth-modal-actions{ display:grid; gap:10px; }
+  .auth-provider-btn{
+    display:inline-flex; align-items:center; justify-content:center; gap:9px;
+  }
+  .auth-btn-icon{
+    width:20px; height:20px; object-fit:contain; flex-shrink:0;
+  }
+  .auth-email-row{ display:grid; grid-template-columns:1fr auto; gap:8px; margin-top:2px; }
+  .auth-email-row input{
+    min-width:0; width:100%; border:1px solid var(--line); border-radius:999px;
+    background:#F9F5EB; color:var(--ink); font:inherit; padding:12px 14px; outline:none;
+  }
+  .auth-modal-note{ margin-top:12px; color:var(--muted); font-size:0.86rem; line-height:1.45; }
+  @media (max-width: 520px){
+    .auth-modal-overlay{ padding:16px; align-items:flex-end; }
+    .auth-modal{ border-radius:24px; padding:22px; }
+    .auth-email-row{ grid-template-columns:1fr; }
+    .result-save-card{ flex-direction:column; align-items:stretch; padding:16px; margin:14px 0 18px; }
+    .result-save-card-actions{ display:grid; grid-template-columns:1fr; }
   }
   @media (max-width: 760px){ .saved-plan-card{ flex-direction:column; } .saved-plan-actions{ justify-content:flex-start; } }
   .leftover-note{
@@ -875,7 +914,6 @@
   }
 
   @media (hover: hover) and (pointer: fine){
-    .header-link:hover{ border-color:var(--moss); color:var(--moss-dark); }
     .btn:hover{ transform: translateY(-2px); }
     .option:hover{ border-color: var(--moss); transform: translateY(-1px); }
     .meal-row .meal-name:hover{ color: var(--moss); }
@@ -913,7 +951,6 @@
     }
     .logo{ font-size:1.08rem; min-width:0; }
     .logo .mark{ width:28px; height:28px; }
-    .header-link{ padding:7px 12px; font-size:0.9rem; }
     nav.steps{ display:none !important; }
     .mobile-progress{ display:none !important; }
 
@@ -1543,6 +1580,7 @@
     }
   }
 </style>
+<link rel="stylesheet" href="/matval-header.css">
 </head>
 <body>
 
@@ -1576,16 +1614,18 @@
       <strong>Matval</strong> — íslenskt matarplan með íslenskum verðum. Verð eru áætluð viðmiðunarverð og geta breyst.
     </p>
     <div class="footer-links" aria-label="Fótur">
-      <a class="footer-link" href="mailto:hello@matval.is?subject=Ábending%20um%20Matval">Senda ábendingu</a>
-      <a class="footer-link" href="#hvernig-virkar-thetta">Hvernig virkar þetta?</a>
-      <a class="footer-link" href="#personuvernd">Persónuvernd</a>
-      <a class="footer-link" href="#skilmalar">Skilmálar</a>
+      <a class="footer-link" href="/contact.html">Senda ábendingu</a>
+      <a class="footer-link" href="/privacy.html">Persónuvernd</a>
+      <a class="footer-link" href="/terms.html">Skilmálar</a>
     </div>
   </div>
 </footer>
 
 <script src="/data.js"></script>
 <script src="/kronan-product-mapping.js"></script>
+<script src="/public/js/supabaseConfig.js"></script>
+<script type="module" src="/public/js/auth.js"></script>
+<script type="module" src="/public/js/cloudPlans.js"></script>
 <script src="/app.js"></script>
 </body>
 </html>
