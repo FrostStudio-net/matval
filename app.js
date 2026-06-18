@@ -21,6 +21,7 @@ const ICONS = {
   healthy: "/public/icons/icons8-greek-salad-96.png",
   easy: "/public/icons/icons8-decline-96.png",
   muscle: "/public/icons/icons8-fit-96.png",
+  recipe: "/public/icons/icons8-menu-96.png",
   protein: "/public/icons/icons8-poultry-leg-96.png",
   dairyfree: "/public/icons/icons8-milk-carton-96.png",
   vegan: "/public/icons/icons8-vegan-food-96.png",
