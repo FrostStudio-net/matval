@@ -243,12 +243,13 @@
   .compact-option-grid{ grid-template-columns: repeat(4, minmax(0, 1fr)); }
   .option{
     border:1px solid var(--line); border-radius: 10px; padding: 14px 16px;
-    cursor:pointer; background: var(--paper); font-size:0.95rem;
+    cursor:pointer; background: var(--paper); color:var(--ink); font-size:0.95rem;
+    font-family:var(--font-body); text-decoration:none; appearance:none; -webkit-appearance:none;
     transition: border-color .15s, background .15s, transform .1s;
     display:flex; align-items:center; gap:10px;
     min-width:0;
   }
-  .option.selected{ border-color: var(--moss); background: rgba(63,93,69,0.08); font-weight:600; }
+  .option.selected{ border-color: var(--moss); background: rgba(63,93,69,0.08); color:var(--moss-dark); font-weight:600; }
   .ui-icon{
     width:20px;
     height:20px;
@@ -570,6 +571,21 @@
   .pantry-remove-mark{ background:none; border:none; color:var(--paper); cursor:pointer; font-size:1rem; line-height:1; padding:0; }
   .pantry-suggestions{ display:flex; flex-wrap:wrap; gap:8px; margin-top:10px; }
   .pantry-suggestions .option{ padding: 8px 14px; font-size:0.85rem; }
+  .pantry-suggestions button.option,
+  .pantry-suggestions .option{
+    color:#244f35;
+    border-color:#d8d0c2;
+    background:var(--paper);
+    text-decoration:none;
+    -webkit-text-fill-color:#244f35;
+  }
+  .pantry-suggestions button.option.selected,
+  .pantry-suggestions .option.selected{
+    background:var(--moss);
+    border-color:var(--moss);
+    color:var(--paper);
+    -webkit-text-fill-color:var(--paper);
+  }
 
   /* Results */
   .mobile-only-result{ display:none; }
