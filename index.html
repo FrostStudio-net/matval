@@ -691,6 +691,32 @@
   .auth-btn-icon{
     width:20px; height:20px; object-fit:contain; flex-shrink:0;
   }
+  .auth-success-state{
+    display:grid; gap:12px; text-align:center; justify-items:center; padding-top:4px;
+  }
+  .auth-success-icon{
+    width:58px; height:58px; display:inline-flex; align-items:center; justify-content:center;
+    border-radius:20px; background:rgba(63,93,69,0.10); margin-bottom:2px;
+  }
+  .auth-success-ui-icon{ width:30px; height:30px; object-fit:contain; }
+  .auth-success-state h4{
+    margin:0; color:var(--dark-green); font-family:var(--font-heading);
+    font-size:1.55rem; line-height:1.05;
+  }
+  .auth-success-state p{
+    margin:0; max-width:32ch; color:var(--muted); line-height:1.5; font-weight:600;
+  }
+  .auth-email-pill{
+    max-width:100%; padding:8px 12px; border-radius:999px; background:#F9F5EB;
+    border:1px solid var(--line); color:var(--moss-dark); font-weight:800;
+    font-size:0.92rem; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+  }
+  .auth-success-helper{
+    max-width:34ch; color:var(--muted); font-size:0.84rem; line-height:1.45; font-weight:600;
+  }
+  .auth-success-actions{
+    width:100%; margin-top:6px;
+  }
   .auth-email-row{ display:grid; grid-template-columns:1fr auto; gap:8px; margin-top:2px; }
   .auth-email-row input{
     min-width:0; width:100%; border:1px solid var(--line); border-radius:999px;
