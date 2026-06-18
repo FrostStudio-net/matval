@@ -307,6 +307,42 @@ let loaderStepIndex = 0;
 const PLAN_ERROR_MESSAGE = "Ekki tókst að búa til plan með þessum skilyrðum. Prófaðu hærra budget eða færri takmarkanir.";
 const AVOID_PLAN_ERROR_MESSAGE = "Engin uppskrift fannst sem passar við þessar takmarkanir. Prófaðu að fjarlægja eitt atriði úr Forðast.";
 const IS_BROWSER = typeof window !== "undefined" && typeof document !== "undefined";
+
+function traceHomepage(stage, details = {}) {
+  if (!IS_BROWSER) return;
+  const appRoot = app || document.getElementById("app");
+  console.log("[HOME TRACE]", stage, {
+    step: state.step,
+    currentView: state.currentView,
+    bodyClasses: document.body.className,
+    appHasChildren: Boolean(appRoot && appRoot.children.length),
+    appTextPreview: appRoot?.textContent?.trim().slice(0, 140) || "",
+    authModalVisible: state.authModalVisible,
+    authLoadingAction: state.authLoadingAction,
+    pricingStatus: state.pricingStatus,
+    hasCurrentPlan: Boolean(state.plan && !state.plan.error),
+    ...details,
+  });
+}
+
+if (IS_BROWSER) {
+  window.addEventListener("error", (event) => {
+    console.error("[HOME TRACE] window error", {
+      message: event.message,
+      source: event.filename,
+      line: event.lineno,
+      column: event.colno,
+      bodyClasses: document.body.className,
+    }, event.error);
+  });
+  window.addEventListener("unhandledrejection", (event) => {
+    console.error("[HOME TRACE] unhandled rejection", {
+      reason: event.reason,
+      bodyClasses: document.body.className,
+    });
+  });
+}
+
 const VEGETARIAN_BLOCKED_INGREDIENT_KEYS = new Set([
   "chicken_breast",
   "ground_beef",
@@ -1624,11 +1660,21 @@ async function migratePendingLocalPlanToCloud() {
 }
 
 async function initializeAuthState() {
+  traceHomepage("auth init start", {
+    authHelperLoaded: Boolean(matvalAuth()),
+    cloudHelperLoaded: Boolean(matvalCloudPlans()),
+  });
   const auth = matvalAuth();
-  if (!auth) return;
+  if (!auth) {
+    traceHomepage("auth init skipped: helper missing");
+    return;
+  }
 
   try {
     state.currentUser = await auth.getCurrentUser();
+    traceHomepage("auth current user resolved", {
+      loggedIn: Boolean(state.currentUser),
+    });
     if (state.currentUser) {
       await refreshCloudPlans({ force: true });
       await migratePendingLocalPlanToCloud();
@@ -1638,6 +1684,10 @@ async function initializeAuthState() {
   }
 
   auth.listenToAuthChanges(async (user) => {
+    traceHomepage("auth state changed", {
+      loggedIn: Boolean(user),
+      beforeView: state.currentView,
+    });
     state.currentUser = user;
     state.cloudPlansLoaded = false;
     if (user) {
@@ -1655,6 +1705,9 @@ async function initializeAuthState() {
     }
     if (state.currentView === "savedPlans") renderMyPlans();
     if (state.currentView === "results") renderResults();
+    traceHomepage("auth state change handled", {
+      afterView: state.currentView,
+    });
   });
 }
 
@@ -2439,6 +2492,7 @@ function initApp() {
   if (!app) {
     throw new Error("Missing #app root element");
   }
+  traceHomepage("init start");
 
   console.log("[MATVAL STARTUP]", {
     recipes: window.RECIPES?.length,
@@ -2458,23 +2512,32 @@ function initApp() {
   state.step = -1;
   state.currentView = "home";
   state.homeFresh = true;
+  traceHomepage("before initial home render");
   render();
+  traceHomepage("after initial home render");
   scrollToPageTop();
 
   window.setTimeout(() => {
     try {
+      traceHomepage("startup assertions start");
       runDietaryAssertions();
       runAvoidFoodAssertions();
       runWeeklyPlanningAssertions();
+      traceHomepage("startup assertions complete");
     } catch (error) {
       console.warn("[MATVAL STARTUP CHECKS FAILED]", error);
+      traceHomepage("startup assertions failed", { message: error.message });
     }
 
     initializeAuthState().then(() => {
+      traceHomepage("auth init complete", {
+        viewAfterAuth: state.currentView,
+      });
       if (state.currentView === "savedPlans") renderMyPlans();
       if (state.currentView === "results") renderResults();
     }).catch((error) => {
       console.warn("[Supabase auth] startup initialization failed:", error);
+      traceHomepage("auth init failed", { message: error.message });
     });
   }, 0);
 }
@@ -2490,6 +2553,7 @@ function showStartupError(error) {
 
 function render() {
   clearInteractionState();
+  traceHomepage("render start");
   const homeLogo = document.getElementById("homeLogo");
   if (homeLogo) {
     homeLogo.onclick = () => {
@@ -2506,7 +2570,8 @@ function render() {
     const s = Number(el.dataset.step);
     el.classList.toggle("active", s === state.step);
   });
-  document.getElementById("stepNav").style.display = "none";
+  const stepNav = document.getElementById("stepNav");
+  if (stepNav) stepNav.style.display = "none";
   const mobileProgress = document.getElementById("mobileStepProgress");
   const mobileStepText = document.getElementById("mobileStepText");
   const mobileStepFill = document.getElementById("mobileStepFill");
@@ -2519,20 +2584,28 @@ function render() {
     }
   }
 
-  if (state.step === -1) renderHero();
-  else if (state.step === 0) renderGoalsStep();
-  else if (state.step === 1) renderStoreStep();
-  else if (state.step === 2) renderBudgetStep();
-  else if (state.step === 3) renderPeopleStep();
-  else if (state.step === 4) renderDaysStep();
-  else if (state.step === 5) renderPantryStep();
-  else if (state.step === 6) renderDislikesStep();
-  else if (state.step === 7) renderResults();
-  else if (state.step === 8) renderMyPlans();
-  renderAuthModal();
+  try {
+    if (state.step === -1) renderHero();
+    else if (state.step === 0) renderGoalsStep();
+    else if (state.step === 1) renderStoreStep();
+    else if (state.step === 2) renderBudgetStep();
+    else if (state.step === 3) renderPeopleStep();
+    else if (state.step === 4) renderDaysStep();
+    else if (state.step === 5) renderPantryStep();
+    else if (state.step === 6) renderDislikesStep();
+    else if (state.step === 7) renderResults();
+    else if (state.step === 8) renderMyPlans();
+    renderAuthModal();
+    traceHomepage("render complete");
+  } catch (error) {
+    console.error("[HOME TRACE] render failed", error);
+    traceHomepage("render failed", { message: error.message });
+    if (state.currentView !== "home" && state.step !== -1) throw error;
+  }
 }
 
 function renderHero() {
+  traceHomepage("renderHero start");
   setQuizActive(false);
   const hasCurrentPlan = Boolean(state.plan && !state.plan.error);
   app.innerHTML = `
@@ -2595,6 +2668,7 @@ function renderHero() {
       howItWorks.scrollIntoView({ behavior: "smooth" });
     };
   }
+  traceHomepage("renderHero complete");
 }
 
 function quizShell(stepLabel, title, bodyHtml, { nextLabel = "Áfram", nextDisabled = false, showBack = true, cardClass = "", bodyClass = "", allowInnerScroll = false } = {}) {
