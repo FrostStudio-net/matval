@@ -38,6 +38,7 @@ const ICONS = {
   checkmark: "/public/icons/icons8-checkmark-96.png",
   checkmarkActive: "/public/icons/icons8-checkmark-active-96.png",
   fire: "/public/icons/icons8-fire-96.png",
+  delete: "/public/icons/icons8-delete-96.png",
 };
 
 function iconImg(iconKey, alt = "", className = "ui-icon") {
@@ -2448,7 +2449,15 @@ function renderMyPlans() {
                   <button class="meal-action-btn" data-open-plan="${plan.id}">Opna plan</button>
                   <button class="meal-action-btn" data-duplicate-plan="${plan.id}">Afrita plan</button>
                   <button class="meal-action-btn" data-generate-from-plan="${plan.id}">Svipað plan</button>
-                  <button class="meal-action-btn danger" data-delete-plan="${plan.id}">Eyða plani</button>
+                  <button class="meal-action-btn danger saved-plan-delete-btn" data-delete-plan="${plan.id}">
+                    <img
+                      src="/icons/icons8-delete-96.png"
+                      alt=""
+                      aria-hidden="true"
+                      class="delete-btn-icon"
+                    />
+                    <span>Eyða plani</span>
+                  </button>
                 </div>
               </div>
             `;
