@@ -236,6 +236,7 @@ const state = {
   pricingStatus: "idle",
   pricingError: null,
   replacementMessage: null,
+  savedPlanNotice: null,
   previousProgressRatio: 0,
   currentProgressRatio: 0,
   traceId: null,
@@ -363,6 +364,7 @@ function startNewWizard() {
 function resetResultViewState() {
   state.resultTab = "plan";
   state.activeResultDay = 0;
+  state.savedPlanNotice = null;
 }
 
 // ---------- Plan generation ----------
@@ -1139,6 +1141,7 @@ function replaceMeal(dayIndex, slot) {
 
   refreshPlanTotals(plan);
   state.replacementMessage = null;
+  state.savedPlanNotice = null;
   state.pricingStatus = "idle";
   state.pricingError = null;
   renderResults();
@@ -1206,6 +1209,119 @@ function writeSavedPlans(plans) {
   localStorage.setItem(SAVED_PLANS_STORAGE_KEY, JSON.stringify(plans));
 }
 
+function stableStringify(value) {
+  if (Array.isArray(value)) return `[${value.map(stableStringify).join(",")}]`;
+  if (value && typeof value === "object") {
+    return `{${Object.keys(value).sort().map((key) => `${JSON.stringify(key)}:${stableStringify(value[key])}`).join(",")}}`;
+  }
+  return JSON.stringify(value);
+}
+
+function hashString(value) {
+  let hash = 2166136261;
+  for (let i = 0; i < value.length; i += 1) {
+    hash ^= value.charCodeAt(i);
+    hash = Math.imul(hash, 16777619);
+  }
+  return (hash >>> 0).toString(36);
+}
+
+function createPlanFingerprint(plan) {
+  if (!plan || plan.error) return null;
+  const selectedDays = normalizeSelectedDays(plan.selectedDays || state.selectedDays);
+  const selectedMeals = normalizeSelectedMeals(plan.selectedMeals || state.selectedMeals);
+  const meals = (plan.days || []).map((day) => Object.fromEntries(
+    selectedMeals.map((slot) => {
+      const meal = day[slot];
+      return [slot, meal ? {
+        recipeId: meal.recipe?.id || meal.recipeId || null,
+        leftover: Boolean(meal.leftover),
+        fromDinner: Boolean(meal.fromDinner),
+        sourceRecipeId: meal.sourceRecipeId || null,
+      } : null];
+    }).filter(([, meal]) => meal)
+  ));
+  const shoppingList = (plan.shoppingList || []).map((item) => ({
+    key: item.key || item.ingredientKey || item.sku || item.ingredientName || item.name || null,
+    ingredientName: item.ingredientName || item.name || null,
+    matchedProductName: item.matchedProductName || item.productName || item.nameFromStore || null,
+    sku: item.sku || null,
+    quantity: Number(item.quantity ?? item.quantityNeeded ?? 0),
+    unit: item.unit || null,
+    packageCount: Number(item.packageCount || 0),
+    unitPrice: Number(item.unitPrice || item.price || 0),
+    totalPrice: Number(item.totalPrice || item.estimatedPrice || item.price || 0),
+    isEstimated: Boolean(item.isEstimated || item.estimated),
+    source: item.source || null,
+  })).sort((a, b) => stableStringify(a).localeCompare(stableStringify(b)));
+
+  return {
+    selectedDays,
+    selectedMeals,
+    store: state.store,
+    people: Number(plan.people || state.people || 0),
+    budget: Number(state.budget || 0),
+    goals: [...state.goals].sort(),
+    dietarySettings: state.goals.filter((goal) => ["vegan", "vegetarian", "dairy_free"].includes(goal)).sort(),
+    dislikes: normalizeAvoidSelections(state.foodDislikes).sort((a, b) => a.localeCompare(b, "is")),
+    pantry: [...state.pantry].sort(),
+    meals,
+    shoppingList,
+    totalCost: Math.round(Number(plan.totalPrice || 0)),
+  };
+}
+
+function createPlanHash(plan) {
+  const fingerprint = createPlanFingerprint(plan);
+  return fingerprint ? hashString(stableStringify(fingerprint)) : null;
+}
+
+function createSavedPlanHash(savedPlan) {
+  if (!savedPlan) return null;
+  const selectedMeals = normalizeSelectedMeals(savedPlan.selectedMeals);
+  const fingerprint = {
+    selectedDays: normalizeSelectedDays(savedPlan.selectedDays || WEEK_DAYS.slice(0, savedPlan.days || 5).map((day) => day.id)),
+    selectedMeals,
+    store: savedPlan.store || "kronan",
+    people: Number(savedPlan.people || 0),
+    budget: Number(savedPlan.budget || 0),
+    goals: [...(savedPlan.goals || [])].sort(),
+    dietarySettings: [...(savedPlan.dietarySettings || (savedPlan.goals || []).filter((goal) => ["vegan", "vegetarian", "dairy_free"].includes(goal)))].sort(),
+    dislikes: normalizeAvoidSelections(savedPlan.dislikes || []).sort((a, b) => a.localeCompare(b, "is")),
+    pantry: [...(savedPlan.pantry || [])].sort(),
+    meals: (savedPlan.meals || []).map((day) => Object.fromEntries(
+      selectedMeals.map((slot) => {
+        const meal = day[slot];
+        return [slot, meal ? {
+          recipeId: meal.recipeId || null,
+          leftover: Boolean(meal.leftover),
+          fromDinner: Boolean(meal.fromDinner),
+          sourceRecipeId: meal.sourceRecipeId || null,
+        } : null];
+      }).filter(([, meal]) => meal)
+    )),
+    shoppingList: (savedPlan.shoppingList || []).map((item) => ({
+      key: item.key || item.ingredientKey || item.sku || item.ingredientName || item.name || null,
+      ingredientName: item.ingredientName || item.name || null,
+      matchedProductName: item.matchedProductName || item.productName || item.nameFromStore || null,
+      sku: item.sku || null,
+      quantity: Number(item.quantity ?? item.quantityNeeded ?? 0),
+      unit: item.unit || null,
+      packageCount: Number(item.packageCount || 0),
+      unitPrice: Number(item.unitPrice || item.price || 0),
+      totalPrice: Number(item.totalPrice || item.estimatedPrice || item.price || 0),
+      isEstimated: Boolean(item.isEstimated || item.estimated),
+      source: item.source || null,
+    })).sort((a, b) => stableStringify(a).localeCompare(stableStringify(b))),
+    totalCost: Math.round(Number(savedPlan.totalCost || 0)),
+  };
+  return hashString(stableStringify(fingerprint));
+}
+
+function isPlanHashSaved(planHash, savedPlans = loadSavedPlans()) {
+  return Boolean(planHash && savedPlans.some((plan) => (plan.planHash || createSavedPlanHash(plan)) === planHash));
+}
+
 function recipeIdsInPlanSnapshot(savedPlan) {
   return (savedPlan.meals || []).flatMap((day) => (
     Object.values(day).map((meal) => meal.recipeId).filter(Boolean)
@@ -1214,8 +1330,10 @@ function recipeIdsInPlanSnapshot(savedPlan) {
 
 function createPlanSnapshot(plan) {
   const now = new Date().toISOString();
+  const planHash = createPlanHash(plan);
   return {
     id: `plan-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    planHash,
     createdAt: now,
     updatedAt: now,
     title: `${plan.numDays} daga plan`,
@@ -1284,9 +1402,18 @@ function saveCurrentPlan() {
   if (!state.plan || state.plan.error) return null;
   const snapshot = createPlanSnapshot(state.plan);
   const savedPlans = loadSavedPlans();
+  if (isPlanHashSaved(snapshot.planHash, savedPlans)) {
+    state.savedPlanNotice = "Þetta plan er nú þegar vistað";
+    console.log("[Saved plans] duplicate ignored", { planHash: snapshot.planHash });
+    return {
+      status: "duplicate",
+      snapshot: savedPlans.find((plan) => (plan.planHash || createSavedPlanHash(plan)) === snapshot.planHash) || snapshot,
+    };
+  }
   writeSavedPlans([snapshot, ...savedPlans]);
+  state.savedPlanNotice = "Plan vistað";
   console.log("[Saved plans] saved", snapshot);
-  return snapshot;
+  return { status: "saved", snapshot };
 }
 
 function openSavedPlan(savedPlanId) {
@@ -2273,6 +2400,10 @@ function renderResults() {
       ? "Náði ekki að sækja verð, sýni áætlað verð."
       : null;
   const replacementMessage = state.replacementMessage;
+  const currentPlanHash = createPlanHash(plan);
+  const currentPlanSaved = isPlanHashSaved(currentPlanHash);
+  const saveButtonText = currentPlanSaved ? "Vistað ✓" : "Vista plan";
+  const savedPlanNotice = state.savedPlanNotice;
   const planTabActive = state.resultTab === "plan";
   const groceryTabActive = state.resultTab === "grocery";
   const shoppingDisplayName = (item) => {
@@ -2422,8 +2553,9 @@ function renderResults() {
 
         <div class="result-actions">
           <button class="btn ghost" id="restartBtn">← Breyta vali</button>
-          <button class="btn" id="savePlanBtn">Vista plan</button>
+          <button class="btn ${currentPlanSaved ? "saved" : ""}" id="savePlanBtn">${saveButtonText}</button>
         </div>
+        ${savedPlanNotice ? `<div class="save-toast" role="status" aria-live="polite">${escapeHtml(savedPlanNotice)}</div>` : ""}
         ${replacementMessage ? `<div class="budget-note" style="margin:10px 0 16px;">${escapeHtml(replacementMessage)}</div>` : ""}
 
         <div class="mobile-only-result">
@@ -2464,10 +2596,15 @@ function renderResults() {
 
   document.getElementById("restartBtn").onclick = () => { navigateToStep(0); };
   document.getElementById("savePlanBtn").onclick = () => {
-    const saved = saveCurrentPlan();
-    if (saved) {
-      navigateToStep(8);
-    }
+    const result = saveCurrentPlan();
+    if (!result) return;
+    renderResults();
+    window.setTimeout(() => {
+      if (state.savedPlanNotice) {
+        state.savedPlanNotice = null;
+        renderResults();
+      }
+    }, 2200);
   };
   document.querySelectorAll(".refresh-prices-btn").forEach((el) => {
     el.onclick = () => {
