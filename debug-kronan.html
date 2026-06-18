@@ -61,15 +61,70 @@
   <h1>Krónan API debug</h1>
   <p class="summary">Raw verification only. No meal plan logic, no product matching logic.</p>
   <button id="runBtn">Keyra Krónan API próf</button>
+  <p id="cooldownNote" class="summary"></p>
   <div id="output" class="summary" style="margin-top:18px;">Bíð eftir keyrslu.</div>
 </main>
 
 <script>
 const output = document.getElementById("output");
 const runBtn = document.getElementById("runBtn");
+const cooldownNote = document.getElementById("cooldownNote");
+const DEBUG_CACHE_KEY = "matval.kronanDebug.cache.v1";
+const DEBUG_429_KEY = "matval.kronanDebug.blockedUntil.v1";
+const DEBUG_COOLDOWN_MS = 60_000;
+const DEBUG_429_COOLDOWN_MS = 10 * 60_000;
 
 function pretty(value) {
   return JSON.stringify(value, null, 2);
+}
+
+function readJson(key) {
+  try {
+    return JSON.parse(localStorage.getItem(key) || "null");
+  } catch (_error) {
+    return null;
+  }
+}
+
+function writeJson(key, value) {
+  localStorage.setItem(key, JSON.stringify(value));
+}
+
+function secondsRemaining(until) {
+  return Math.max(0, Math.ceil((Number(until || 0) - Date.now()) / 1000));
+}
+
+function cachedDebug() {
+  const cached = readJson(DEBUG_CACHE_KEY);
+  if (!cached || !cached.body || !cached.timestamp) return null;
+  return cached;
+}
+
+function renderDebugBody(body, cached = false) {
+  output.innerHTML = `
+    <p class="summary">${cached ? "Sýni cache-aða niðurstöðu." : "Ný live keyrsla."} Base URL: <code>${body.baseUrl}</code> · Generated: <code>${body.generatedAt}</code></p>
+    ${body.results.map(renderResult).join("")}
+  `;
+}
+
+function contains429(body) {
+  return (body?.results || []).some((result) => Number(result.status) === 429);
+}
+
+function updateCooldownUi() {
+  const blockedRemaining = secondsRemaining(localStorage.getItem(DEBUG_429_KEY));
+  if (blockedRemaining > 0) {
+    runBtn.disabled = true;
+    cooldownNote.textContent = `Krónan svaraði með 429. Live köll eru stöðvuð tímabundið. Reyndu aftur eftir um ${Math.ceil(blockedRemaining / 60)} mín.`;
+    return;
+  }
+
+  const cached = cachedDebug();
+  const cooldownRemaining = cached ? secondsRemaining(cached.timestamp + DEBUG_COOLDOWN_MS) : 0;
+  runBtn.disabled = cooldownRemaining > 0;
+  cooldownNote.textContent = cooldownRemaining > 0
+    ? `Cooldown virkur til að forðast spam. Reyndu aftur eftir ${cooldownRemaining} sek.`
+    : "Live kall er aðeins keyrt þegar þú smellir á hnappinn.";
 }
 
 function renderResult(result) {
@@ -91,6 +146,19 @@ function renderResult(result) {
 }
 
 async function runDebug() {
+  const blockedRemaining = secondsRemaining(localStorage.getItem(DEBUG_429_KEY));
+  if (blockedRemaining > 0) {
+    updateCooldownUi();
+    return;
+  }
+
+  const cached = cachedDebug();
+  if (cached && Date.now() - cached.timestamp < DEBUG_COOLDOWN_MS) {
+    renderDebugBody(cached.body, true);
+    updateCooldownUi();
+    return;
+  }
+
   runBtn.disabled = true;
   output.textContent = "Sæki gögn frá Krónunni...";
 
@@ -98,6 +166,9 @@ async function runDebug() {
     const response = await fetch("/api/kronan-debug");
     const body = await response.json();
     if (!response.ok) {
+      if (response.status === 429) {
+        localStorage.setItem(DEBUG_429_KEY, String(Date.now() + DEBUG_429_COOLDOWN_MS));
+      }
       output.innerHTML = `
         <section class="card">
           <h2>Debug endpoint failed</h2>
@@ -111,10 +182,20 @@ async function runDebug() {
       return;
     }
 
-    output.innerHTML = `
-      <p class="summary">Base URL: <code>${body.baseUrl}</code> · Generated: <code>${body.generatedAt}</code></p>
-      ${body.results.map(renderResult).join("")}
-    `;
+    writeJson(DEBUG_CACHE_KEY, { timestamp: Date.now(), body });
+    if (contains429(body)) {
+      localStorage.setItem(DEBUG_429_KEY, String(Date.now() + DEBUG_429_COOLDOWN_MS));
+      output.innerHTML = `
+        <section class="card">
+          <h2>Of mörg Krónan köll</h2>
+          <p>Krónan svaraði með 429. Ég stöðva live köll tímabundið svo við spömmum ekki API-ið.</p>
+        </section>
+        ${body.results.map(renderResult).join("")}
+      `;
+      return;
+    }
+
+    renderDebugBody(body, false);
   } catch (error) {
     output.innerHTML = `
       <section class="card">
@@ -123,12 +204,15 @@ async function runDebug() {
       </section>
     `;
   } finally {
-    runBtn.disabled = false;
+    updateCooldownUi();
   }
 }
 
 runBtn.addEventListener("click", runDebug);
-runDebug();
+const initialCache = cachedDebug();
+if (initialCache) renderDebugBody(initialCache.body, true);
+updateCooldownUi();
+window.setInterval(updateCooldownUi, 1000);
 </script>
 </body>
 </html>
