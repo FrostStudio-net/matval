@@ -36,6 +36,7 @@ const ICONS = {
   carrot: "/public/icons/icons8-carrot-96.png",
   leftovers: "/public/icons/icons8-calendar-96.png",
   checkmark: "/public/icons/icons8-checkmark-96.png",
+  checkmarkActive: "/public/icons/icons8-checkmark-active-96.png",
   fire: "/public/icons/icons8-fire-96.png",
 };
 
@@ -1378,50 +1379,17 @@ function createPlanHash(plan) {
   return fingerprint ? hashString(stableStringify(fingerprint)) : null;
 }
 
-function createSavedPlanHash(savedPlan) {
-  if (!savedPlan) return null;
-  const selectedMeals = normalizeSelectedMeals(savedPlan.selectedMeals);
-  const fingerprint = {
-    selectedDays: normalizeSelectedDays(savedPlan.selectedDays || WEEK_DAYS.slice(0, savedPlan.days || 5).map((day) => day.id)),
-    selectedMeals,
-    store: savedPlan.store || "kronan",
-    people: Number(savedPlan.people || 0),
-    budget: Number(savedPlan.budget || 0),
-    goals: [...(savedPlan.goals || [])].sort(),
-    dietarySettings: [...(savedPlan.dietarySettings || (savedPlan.goals || []).filter((goal) => ["vegan", "vegetarian", "dairy_free"].includes(goal)))].sort(),
-    dislikes: normalizeAvoidSelections(savedPlan.dislikes || []).sort((a, b) => a.localeCompare(b, "is")),
-    pantry: [...(savedPlan.pantry || [])].sort(),
-    meals: (savedPlan.meals || []).map((day) => Object.fromEntries(
-      selectedMeals.map((slot) => {
-        const meal = day[slot];
-        return [slot, meal ? {
-          recipeId: meal.recipeId || null,
-          leftover: Boolean(meal.leftover),
-          fromDinner: Boolean(meal.fromDinner),
-          sourceRecipeId: meal.sourceRecipeId || null,
-        } : null];
-      }).filter(([, meal]) => meal)
-    )),
-    shoppingList: (savedPlan.shoppingList || []).map((item) => ({
-      key: item.key || item.ingredientKey || item.sku || item.ingredientName || item.name || null,
-      ingredientName: item.ingredientName || item.name || null,
-      matchedProductName: item.matchedProductName || item.productName || item.nameFromStore || null,
-      sku: item.sku || null,
-      quantity: Number(item.quantity ?? item.quantityNeeded ?? 0),
-      unit: item.unit || null,
-      packageCount: Number(item.packageCount || 0),
-      unitPrice: Number(item.unitPrice || item.price || 0),
-      totalPrice: Number(item.totalPrice || item.estimatedPrice || item.price || 0),
-      isEstimated: Boolean(item.isEstimated || item.estimated),
-      source: item.source || null,
-    })).sort((a, b) => stableStringify(a).localeCompare(stableStringify(b))),
-    totalCost: Math.round(Number(savedPlan.totalCost || 0)),
-  };
-  return hashString(stableStringify(fingerprint));
+function isRealPlanHash(value) {
+  return typeof value === "string" && value.trim().length > 0;
+}
+
+function findSavedPlanByHash(planHash, savedPlans = loadSavedPlans()) {
+  if (!isRealPlanHash(planHash)) return null;
+  return savedPlans.find((plan) => isRealPlanHash(plan.planHash) && plan.planHash === planHash) || null;
 }
 
 function isPlanHashSaved(planHash, savedPlans = loadSavedPlans()) {
-  return Boolean(planHash && savedPlans.some((plan) => (plan.planHash || createSavedPlanHash(plan)) === planHash));
+  return Boolean(findSavedPlanByHash(planHash, savedPlans));
 }
 
 function recipeIdsInPlanSnapshot(savedPlan) {
@@ -1504,12 +1472,28 @@ function saveCurrentPlan() {
   if (!state.plan || state.plan.error) return null;
   const snapshot = createPlanSnapshot(state.plan);
   const savedPlans = loadSavedPlans();
-  if (isPlanHashSaved(snapshot.planHash, savedPlans)) {
+  const duplicatePlan = findSavedPlanByHash(snapshot.planHash, savedPlans);
+  console.log("[Saved plans] save attempt", {
+    savedPlansLength: savedPlans.length,
+    currentPlanHash: snapshot.planHash,
+    matchingSavedPlanId: duplicatePlan?.id || null,
+  });
+  if (!isRealPlanHash(snapshot.planHash)) {
+    console.warn("[Saved plans] current plan hash is missing; saving without duplicate check", {
+      savedPlansLength: savedPlans.length,
+      currentPlanHash: snapshot.planHash,
+    });
+  }
+  if (duplicatePlan) {
     state.savedPlanNotice = "Þetta plan er nú þegar vistað";
-    console.log("[Saved plans] duplicate ignored", { planHash: snapshot.planHash });
+    console.log("[Saved plans] duplicate ignored", {
+      savedPlansLength: savedPlans.length,
+      currentPlanHash: snapshot.planHash,
+      matchingSavedPlanId: duplicatePlan.id,
+    });
     return {
       status: "duplicate",
-      snapshot: savedPlans.find((plan) => (plan.planHash || createSavedPlanHash(plan)) === snapshot.planHash) || snapshot,
+      snapshot: duplicatePlan,
     };
   }
   writeSavedPlans([snapshot, ...savedPlans]);
@@ -2322,7 +2306,10 @@ function renderDislikesStep() {
     <p style="color:var(--muted); margin-bottom:18px;">Veldu mat sem þú vilt ekki fá í planinu. Ef þetta er ofnæmi, vertu sérstaklega viss um að fara yfir innihaldsefni.</p>
     <div class="pantry-tags" id="avoidTags" style="margin-bottom:14px;">
       ${selectedLabels.map((label) => `
-        <span class="pantry-tag">${escapeHtml(label)} <button data-remove-avoid="${escapeHtml(label)}" aria-label="Fjarlægja ${escapeHtml(label)}">×</button></span>
+        <button class="pantry-tag" type="button" data-remove-avoid="${escapeHtml(label)}" aria-label="Fjarlægja ${escapeHtml(label)}">
+          <span>${escapeHtml(label)}</span>
+          <span class="pantry-remove-mark" aria-hidden="true">×</span>
+        </button>
       `).join("")}
     </div>
     <div class="pantry-input-row">
@@ -2333,13 +2320,15 @@ function renderDislikesStep() {
       ${AVOID_FOOD_SUGGESTIONS.map((item) => `<option value="${escapeHtml(item)}"></option>`).join("")}
     </datalist>
     <div class="pantry-suggestions">
-      ${presetOptions.map((label) => `
-        <div class="option ${selectedLabels.some((item) => normalizeFoodText(item) === normalizeFoodText(label)) ? "selected" : ""}" data-dislike="${escapeHtml(label)}">
-          ${escapeHtml(label)}
-        </div>
-      `).join("")}
+      ${presetOptions.map((label) => {
+        const selected = selectedLabels.some((item) => normalizeFoodText(item) === normalizeFoodText(label));
+        return `
+        <button class="option ${selected ? "selected" : ""}" type="button" data-dislike="${escapeHtml(label)}">
+          ${selected ? "✓" : "+"} ${escapeHtml(label)}
+        </button>
+      `;
+      }).join("")}
     </div>
-    ${selectedLabels.length ? `<p style="color:var(--muted); font-size:0.85rem;">Forðast: ${selectedLabels.map(escapeHtml).join(", ")}</p>` : ""}
   `;
   quizShell("Skref 7 — Forðast", "Er eitthvað sem þú vilt forðast?", body, {
     nextLabel: "Búa til matarplan",
@@ -2529,7 +2518,9 @@ function renderResults() {
   const replacementMessage = state.replacementMessage;
   const currentPlanHash = createPlanHash(plan);
   const currentPlanSaved = isPlanHashSaved(currentPlanHash);
-  const saveButtonText = currentPlanSaved ? "Vistað ✓" : "Vista plan";
+  const saveButtonContent = currentPlanSaved
+    ? `${iconImg("checkmarkActive", "", "ui-icon save-check-icon")} <span>Vistað</span>`
+    : "Vista plan";
   const savedPlanNotice = state.savedPlanNotice;
   const planTabActive = state.resultTab === "plan";
   const groceryTabActive = state.resultTab === "grocery";
@@ -2680,9 +2671,17 @@ function renderResults() {
 
         <div class="result-actions">
           <button class="btn ghost" id="restartBtn">← Breyta vali</button>
-          <button class="btn ${currentPlanSaved ? "saved" : ""}" id="savePlanBtn">${saveButtonText}</button>
+          <div class="save-action-wrap">
+            <button class="btn ${currentPlanSaved ? "saved" : ""}" id="savePlanBtn">${saveButtonContent}</button>
+          </div>
         </div>
-        ${savedPlanNotice ? `<div class="save-toast" role="status" aria-live="polite">${escapeHtml(savedPlanNotice)}</div>` : ""}
+        ${savedPlanNotice ? `
+          <div class="save-toast" role="status" aria-live="polite">
+            ${iconImg("checkmarkActive", "", "ui-icon save-toast-icon")}
+            <span>${escapeHtml(savedPlanNotice)}</span>
+            <button class="save-toast-link" type="button" id="viewSavedPlansBtn">Skoða í Mín plön</button>
+          </div>
+        ` : ""}
         ${replacementMessage ? `<div class="budget-note" style="margin:10px 0 16px;">${escapeHtml(replacementMessage)}</div>` : ""}
 
         <div class="mobile-only-result">
@@ -2731,8 +2730,15 @@ function renderResults() {
         state.savedPlanNotice = null;
         renderResults();
       }
-    }, 2200);
+    }, 3800);
   };
+  const viewSavedPlansBtn = document.getElementById("viewSavedPlansBtn");
+  if (viewSavedPlansBtn) {
+    viewSavedPlansBtn.onclick = () => {
+      state.savedPlanNotice = null;
+      navigateToStep(8);
+    };
+  }
   document.querySelectorAll(".refresh-prices-btn").forEach((el) => {
     el.onclick = () => {
       if (!state.plan || state.plan.error) return;

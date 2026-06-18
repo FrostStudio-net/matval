@@ -460,12 +460,33 @@
   .saved-plan-card h3{ font-size:1.25rem; margin-bottom:6px; }
   .saved-plan-meta{ color:var(--muted); font-size:0.88rem; }
   .saved-plan-actions{ display:flex; gap:8px; flex-wrap:wrap; justify-content:flex-end; }
-  .btn.saved{ background:var(--moss-dark); color:var(--paper); }
+  .btn.saved{
+    display:inline-flex; align-items:center; justify-content:center; gap:7px;
+    background:var(--moss-dark); color:var(--paper);
+  }
+  .save-check-icon{ width:18px; height:18px; }
+  .save-action-wrap{ display:inline-flex; align-items:center; }
+  .save-action-wrap .btn{ width:100%; }
   .save-toast{
-    display:inline-flex; align-items:center; min-height:36px; margin:0 0 16px;
-    padding:8px 12px; border-radius:10px; background:rgba(63,93,69,0.10);
+    position:fixed; right:24px; bottom:calc(28px + env(safe-area-inset-bottom)); z-index:80;
+    display:inline-flex; align-items:center; gap:10px; min-height:36px;
+    width:max-content; max-width:min(360px, calc(100vw - 32px));
+    padding:8px 12px; border-radius:10px; background:var(--paper);
     color:var(--moss-dark); font-family:var(--font-body); font-size:0.9rem; font-weight:700;
-    border:1px solid rgba(63,93,69,0.18);
+    border:1px solid rgba(63,93,69,0.18); box-shadow:0 12px 30px rgba(43,34,24,0.14);
+    animation:saveToastIn 320ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+  .save-toast-icon{ width:20px; height:20px; flex-shrink:0; }
+  .save-toast-link{
+    border:0; background:transparent; color:var(--moss-dark); font:inherit;
+    font-size:0.82rem; text-decoration:underline; cursor:pointer; padding:0; white-space:nowrap;
+  }
+  @keyframes saveToastIn{
+    from{ opacity:0; transform:translateX(28px); }
+    to{ opacity:1; transform:translateX(0); }
+  }
+  @media (prefers-reduced-motion: reduce){
+    .save-toast{ animation:none; }
   }
   @media (max-width: 760px){ .saved-plan-card{ flex-direction:column; } .saved-plan-actions{ justify-content:flex-start; } }
   .leftover-note{
@@ -1250,6 +1271,12 @@
       grid-template-columns:1fr 1fr !important;
       gap:10px;
       margin:18px 0;
+    }
+    .result-actions .save-action-wrap{ width:100%; }
+    .save-toast{
+      right:14px;
+      bottom:calc(18px + env(safe-area-inset-bottom));
+      max-width:min(340px, calc(100vw - 28px));
     }
     .result-actions .settings-btn,
     .result-actions .my-plans-btn{
