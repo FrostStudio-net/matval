@@ -89,6 +89,33 @@ const DAY_NAMES = WEEK_DAYS.map((day) => day.name);
 const STEP_LABELS = ["Markmið", "Verslun", "Kostnaður", "Fólk", "Dagar og máltíðir", "Til heima", "Forðast"];
 
 const PANTRY_SUGGESTIONS = ["oats", "rice", "pasta", "eggs", "chicken_breast", "tuna", "oil", "milk", "oatmilk", "garlic", "onion"];
+const PANTRY_ALIASES = {
+  rice: ["hrísgrjón", "hrisgrjon", "grjón"],
+  milk: ["mjólk", "mjolk", "nýmjólk"],
+  oats: ["hafrar", "haframjöl"],
+  eggs: ["egg"],
+  pasta: ["pasta"],
+  chicken_breast: ["kjúklingur", "kjuklingur", "kjúklingabringur", "kjuklingabringur"],
+  tuna: ["túnfiskur", "tunfiskur"],
+  oil: ["olía", "olia", "matarolía", "matarolia"],
+  oatmilk: ["haframjólk", "haframjolk", "oat milk"],
+  garlic: ["hvítlaukur", "hvitlaukur"],
+  onion: ["laukur"],
+  bread: ["brauð", "braud"],
+  butter: ["smjör", "smjor"],
+  cheese: ["ostur"],
+  potatoes: ["kartöflur", "kartoflur"],
+  cucumber: ["gúrka", "gurka", "agúrka", "agurka"],
+  tomato: ["tómatar", "tomatar"],
+  peanut_butter: ["hnetusmjör", "hnetusmjor"],
+  apples: ["epli"],
+  banana: ["bananar", "banani"],
+  chickpeas: ["kjúklingabaunir", "kjuklingabaunir"],
+  black_beans: ["svartar baunir"],
+  kidney_beans: ["nýrnabaunir", "nyrnabaunir"],
+  tofu: ["tófú", "tofu"],
+  noodles: ["núðlur", "nudlur"],
+};
 const FOOD_DISLIKES_STORAGE_KEY = "matval.foodDislikes.v1";
 const SAVED_PLANS_STORAGE_KEY = "matval.savedPlans.v1";
 const AVOID_FOOD_SUGGESTIONS = [
@@ -396,6 +423,81 @@ function normalizeFoodText(value) {
     .replace(/[^a-z0-9æöüø\s]/gi, " ")
     .replace(/\s+/g, " ")
     .trim();
+}
+
+function customPantryKey(value) {
+  return `custom:${String(value || "").trim()}`;
+}
+
+function isCustomPantryItem(value) {
+  return String(value || "").startsWith("custom:");
+}
+
+function customPantryLabel(value) {
+  return String(value || "").replace(/^custom:/, "").trim();
+}
+
+function pantryItemLabel(value) {
+  if (APP_PRODUCTS[value]) return APP_PRODUCTS[value].name;
+  if (isCustomPantryItem(value)) return customPantryLabel(value);
+  return String(value || "");
+}
+
+function findPantryProductKey(value) {
+  const normalized = normalizeFoodText(value);
+  if (!normalized) return null;
+  if (APP_PRODUCTS[value]) return value;
+  const aliasMatch = Object.entries(PANTRY_ALIASES).find(([key, aliases]) => (
+    key === normalized || aliases.some((alias) => normalizeFoodText(alias) === normalized)
+  ));
+  if (aliasMatch) return aliasMatch[0];
+
+  return Object.entries(APP_PRODUCTS).find(([key, product]) => {
+    const productName = normalizeFoodText(product.name);
+    const normalizedKey = normalizeFoodText(key.replace(/_/g, " "));
+    return normalized === normalizedKey
+      || normalized === productName
+      || productName.includes(normalized)
+      || normalized.includes(productName);
+  })?.[0] || null;
+}
+
+function normalizePantryEntry(value) {
+  const productKey = findPantryProductKey(value);
+  if (productKey) return productKey;
+  const normalized = normalizeFoodText(value);
+  return normalized ? customPantryKey(value) : null;
+}
+
+function addPantryEntry(value) {
+  const entry = normalizePantryEntry(value);
+  if (!entry) return false;
+  const normalizedEntry = isCustomPantryItem(entry) ? normalizeFoodText(customPantryLabel(entry)) : entry;
+  const alreadySelected = state.pantry.some((item) => (
+    isCustomPantryItem(item) ? normalizeFoodText(customPantryLabel(item)) : item
+  ) === normalizedEntry);
+  if (alreadySelected) return false;
+  state.pantry.push(entry);
+  return true;
+}
+
+function removePantryEntry(value) {
+  state.pantry = state.pantry.filter((entry) => entry !== value);
+}
+
+function pantryMatchesIngredient(key, pantry = state.pantry) {
+  if (pantry.includes(key)) return true;
+  const product = APP_PRODUCTS[key];
+  const searchable = normalizeFoodText([
+    key.replace(/_/g, " "),
+    product?.name,
+    ...(PANTRY_ALIASES[key] || []),
+  ].filter(Boolean).join(" "));
+  return pantry.some((entry) => {
+    if (!isCustomPantryItem(entry)) return false;
+    const custom = normalizeFoodText(customPantryLabel(entry));
+    return custom && searchable.includes(custom);
+  });
 }
 
 function buildAvoidRules(selectedAvoids = []) {
@@ -948,7 +1050,7 @@ function estimateShoppingList(planDays, people, pantry) {
   let totalPrice = 0;
   Object.entries(aggregate).forEach(([key, amount]) => {
     const product = APP_PRODUCTS[key];
-    if (!product || pantry.includes(key)) return;
+    if (!product || pantryMatchesIngredient(key, pantry)) return;
     if (ingredientMatchesDislikes(key)) return;
     const price = product.price * amount;
     totalPrice += price;
@@ -2132,21 +2234,37 @@ function renderDaysStep() {
 }
 
 function renderPantryStep() {
+  const productSuggestions = Object.values(APP_PRODUCTS).map((product) => product.name);
+  const selectedPantryHtml = state.pantry.map((key) => `
+    <button class="pantry-tag" type="button" data-pantry-remove="${escapeHtml(key)}">
+      <span>${escapeHtml(pantryItemLabel(key))}</span>
+      ${isCustomPantryItem(key) ? `<span class="pantry-custom-label">Sérsniðið</span>` : ""}
+      <span class="pantry-remove-mark" aria-hidden="true">×</span>
+    </button>
+  `).join("");
+  const quickChipsHtml = PANTRY_SUGGESTIONS.map((key) => {
+    const selected = state.pantry.includes(key);
+    return `
+      <button class="option ${selected ? "selected" : ""}" type="button" data-pantry-toggle="${key}">
+        ${selected ? "✓" : "+"} ${escapeHtml(APP_PRODUCTS[key].name)}
+      </button>
+    `;
+  }).join("");
   const body = `
     <p style="color:var(--muted); margin-bottom:14px;">Hvað ert þú að eiga til heima? Appið reynir að nota það og sleppir því úr innkaupalistanum.</p>
+    <div class="pantry-input-row">
+      <input id="pantryInput" type="text" placeholder="Leitaðu eða bættu við vöru sem þú átt..." list="pantrySuggestionsList" autocomplete="off" />
+      <button class="btn" id="addPantryBtn" type="button">Bæta við</button>
+      <datalist id="pantrySuggestionsList">
+        ${productSuggestions.map((name) => `<option value="${escapeHtml(name)}"></option>`).join("")}
+      </datalist>
+    </div>
     <div class="pantry-tags" id="pantryTags">
-      ${state.pantry.map((key) => `
-        <button class="pantry-tag" type="button" data-pantry-remove="${key}">
-          <span>${APP_PRODUCTS[key].name}</span>
-          <span class="pantry-remove-mark" aria-hidden="true">×</span>
-        </button>
-      `).join("")}
+      ${selectedPantryHtml}
     </div>
     <div style="margin-top:14px;">
       <div class="pantry-suggestions">
-        ${PANTRY_SUGGESTIONS.filter((k) => !state.pantry.includes(k)).map((k) => `
-          <div class="option" data-add="${k}">+ ${APP_PRODUCTS[k].name}</div>
-        `).join("")}
+        ${quickChipsHtml}
       </div>
     </div>
   `;
@@ -2154,33 +2272,42 @@ function renderPantryStep() {
     allowInnerScroll: true,
   });
 
-  function refreshTags() {
-    document.getElementById("pantryTags").innerHTML = state.pantry.map((key) => `
-      <button class="pantry-tag" type="button" data-pantry-remove="${key}">
-        <span>${APP_PRODUCTS[key].name}</span>
-        <span class="pantry-remove-mark" aria-hidden="true">×</span>
-      </button>
-    `).join("");
-    bindRemove();
-  }
   function bindRemove() {
     document.querySelectorAll("[data-pantry-remove]").forEach((el) => {
       el.onclick = (event) => {
         event.preventDefault();
         event.stopPropagation();
-        state.pantry = state.pantry.filter((k) => k !== el.dataset.pantryRemove);
-        refreshTags();
+        removePantryEntry(el.dataset.pantryRemove);
         renderPantryStep();
       };
     });
   }
   bindRemove();
-  document.querySelectorAll("[data-add]").forEach((el) => {
+  document.querySelectorAll("[data-pantry-toggle]").forEach((el) => {
     el.onclick = () => {
-      state.pantry.push(el.dataset.add);
+      const key = el.dataset.pantryToggle;
+      if (state.pantry.includes(key)) removePantryEntry(key);
+      else addPantryEntry(key);
       renderPantryStep();
     };
   });
+  function addTypedPantryItem() {
+    const input = document.getElementById("pantryInput");
+    if (!input) return;
+    addPantryEntry(input.value);
+    input.value = "";
+    renderPantryStep();
+  }
+  document.getElementById("addPantryBtn").onclick = addTypedPantryItem;
+  document.getElementById("pantryInput").onkeydown = (event) => {
+    if (event.key === "Enter") {
+      event.preventDefault();
+      addTypedPantryItem();
+    }
+  };
+  document.getElementById("pantryInput").onchange = (event) => {
+    if (findPantryProductKey(event.currentTarget.value)) addTypedPantryItem();
+  };
 
   document.getElementById("nextBtn").onclick = () => {
     navigateToStep(6);
@@ -2200,7 +2327,7 @@ function renderDislikesStep() {
     </div>
     <div class="pantry-input-row">
       <input type="text" id="avoidInput" list="avoidSuggestions" placeholder="Sláðu inn mat eða ofnæmi..." autocomplete="off" />
-      <button class="btn ghost" id="addAvoidBtn" type="button">Bæta við</button>
+      <button class="btn" id="addAvoidBtn" type="button">Bæta við</button>
     </div>
     <datalist id="avoidSuggestions">
       ${AVOID_FOOD_SUGGESTIONS.map((item) => `<option value="${escapeHtml(item)}"></option>`).join("")}
