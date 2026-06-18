@@ -2701,7 +2701,7 @@ function renderPantryStep() {
     `;
   }).join("");
   const body = `
-    <p style="color:var(--muted); margin-bottom:14px;">Hvað ert þú að eiga til heima? Appið reynir að nota það og sleppir því úr innkaupalistanum.</p>
+    <p style="color:var(--muted); margin-bottom:14px;">Hvað er til heima hjá þér?</p>
     <div class="pantry-input-row">
       <input id="pantryInput" type="text" placeholder="Leitaðu eða bættu við vöru sem þú átt..." list="pantrySuggestionsList" autocomplete="off" />
       <button class="btn" id="addPantryBtn" type="button">Bæta við</button>
