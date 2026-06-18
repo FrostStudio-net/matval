@@ -266,12 +266,22 @@ const state = {
   pricingError: null,
   replacementMessage: null,
   savedPlanNotice: null,
+  isGeneratingPlan: false,
+  generationError: null,
   previousProgressRatio: 0,
   currentProgressRatio: 0,
   traceId: null,
 };
 
 const pricingRequest = { id: 0 };
+const loaderSteps = [
+  { text: "Veljum uppskriftir…", percent: 24 },
+  { text: "Skoðum mataræði og forðast-lista…", percent: 48 },
+  { text: "Setjum saman innkaupalista…", percent: 74 },
+  { text: "Reiknum verð og klárum planið…", percent: 100 },
+];
+let loaderInterval = null;
+let loaderStepIndex = 0;
 const PLAN_ERROR_MESSAGE = "Ekki tókst að búa til plan með þessum skilyrðum. Prófaðu hærra budget eða færri takmarkanir.";
 const AVOID_PLAN_ERROR_MESSAGE = "Engin uppskrift fannst sem passar við þessar takmarkanir. Prófaðu að fjarlægja eitt atriði úr Forðast.";
 const IS_BROWSER = typeof window !== "undefined" && typeof document !== "undefined";
@@ -340,6 +350,106 @@ function scrollToPageTop() {
   window.scrollTo({ top: 0, left: 0, behavior: "auto" });
 }
 
+function wait(ms) {
+  return new Promise((resolve) => window.setTimeout(resolve, ms));
+}
+
+function withTimeout(promise, ms, message = "Timed out") {
+  return new Promise((resolve, reject) => {
+    const timer = window.setTimeout(() => reject(new Error(message)), ms);
+    Promise.resolve(promise)
+      .then((value) => {
+        window.clearTimeout(timer);
+        resolve(value);
+      })
+      .catch((error) => {
+        window.clearTimeout(timer);
+        reject(error);
+      });
+  });
+}
+
+function ensurePlanLoaderOverlay() {
+  if (!IS_BROWSER) return null;
+  let overlay = document.getElementById("plan-loader-overlay");
+  if (overlay) return overlay;
+
+  document.body.insertAdjacentHTML("beforeend", `
+    <div id="plan-loader-overlay" class="plan-loader-overlay" aria-hidden="true">
+      <section class="plan-loader-card" role="status" aria-live="polite">
+        <div class="plan-loader-logo-stage" aria-hidden="true">
+          <span class="plan-loader-logo-halo"></span>
+          <span class="plan-loader-logo-halo second"></span>
+          <div class="plan-loader-logo-tile">
+            <img src="/public/logo_cropped.png" alt="" />
+          </div>
+        </div>
+
+        <p class="plan-loader-eyebrow">Matval er að vinna</p>
+        <h2>Útbý matarplanið þitt</h2>
+        <p>Við veljum uppskriftir, sameinum hráefni og setjum saman innkaupalistann.</p>
+
+        <div class="plan-loader-status-card">
+          <div class="plan-loader-status-top">
+            <span class="plan-loader-status-left">
+              <span class="plan-loader-status-dot" aria-hidden="true"></span>
+              <span id="plan-loader-status-text">Veljum uppskriftir…</span>
+            </span>
+            <span id="plan-loader-percent">24%</span>
+          </div>
+
+          <div class="plan-loader-progress" aria-hidden="true">
+            <span id="plan-loader-progress-fill"></span>
+          </div>
+        </div>
+
+        <div class="plan-loader-microcopy">
+          Þetta tekur yfirleitt bara nokkrar sekúndur
+        </div>
+      </section>
+    </div>
+  `);
+  return document.getElementById("plan-loader-overlay");
+}
+
+function updatePlanLoaderStep(step) {
+  const text = document.getElementById("plan-loader-status-text");
+  const percent = document.getElementById("plan-loader-percent");
+  const fill = document.getElementById("plan-loader-progress-fill");
+
+  if (text) text.textContent = step.text;
+  if (percent) percent.textContent = `${step.percent}%`;
+  if (fill) fill.style.width = `${step.percent}%`;
+}
+
+function showPlanLoader() {
+  const overlay = ensurePlanLoaderOverlay();
+  if (!overlay) return;
+
+  overlay.classList.add("is-visible");
+  overlay.setAttribute("aria-hidden", "false");
+
+  loaderStepIndex = 0;
+  updatePlanLoaderStep(loaderSteps[0]);
+
+  window.clearInterval(loaderInterval);
+  loaderInterval = window.setInterval(() => {
+    loaderStepIndex = Math.min(loaderStepIndex + 1, loaderSteps.length - 1);
+    updatePlanLoaderStep(loaderSteps[loaderStepIndex]);
+  }, 360);
+}
+
+function hidePlanLoader() {
+  window.clearInterval(loaderInterval);
+  loaderInterval = null;
+
+  const overlay = document.getElementById("plan-loader-overlay");
+  if (!overlay) return;
+
+  overlay.classList.remove("is-visible");
+  overlay.setAttribute("aria-hidden", "true");
+}
+
 function setQuizActive(active) {
   if (!IS_BROWSER) return;
   document.body.classList.toggle("quiz-active", Boolean(active));
@@ -375,6 +485,7 @@ function resetWizardDefaults() {
   state.pricingStatus = "idle";
   state.pricingError = null;
   state.replacementMessage = null;
+  state.generationError = null;
   state.traceId = null;
 }
 
@@ -1708,6 +1819,27 @@ function recalculatePlanTotal(plan) {
   plan.totalPrice = plan.shoppingList.reduce((total, item) => total + (item.totalPrice ?? item.price ?? item.estimatedPrice ?? 0), 0);
 }
 
+function markPlanPricesEstimated(plan, message = "Náði ekki að sækja verð, sýni áætlað verð.") {
+  if (!plan || !Array.isArray(plan.shoppingList)) return;
+  plan.shoppingList.forEach((item) => {
+    item.price = item.mockPrice;
+    item.totalPrice = item.mockPrice;
+    item.matchedProductName = null;
+    item.sku = null;
+    item.packageSize = null;
+    item.packageCount = null;
+    item.image = null;
+    item.sourceLabel = "Áætlað verð";
+    item.source = "estimated";
+    item.estimated = true;
+    item.isEstimated = true;
+    item.kronanProduct = null;
+  });
+  recalculatePlanTotal(plan);
+  state.pricingStatus = "error";
+  state.pricingError = message;
+}
+
 function normalizeMatchedShoppingItem(matched, original) {
   const isEstimated = matched ? Boolean(matched.isEstimated) : true;
   const source = matched && matched.source ? matched.source : isEstimated ? "estimated" : "kronan";
@@ -1803,22 +1935,7 @@ async function hydrateKronanPrices(plan) {
     console.error("[Main app Krónan] match-products failed:", error);
     if (requestId !== pricingRequest.id) return;
 
-    plan.shoppingList.forEach((item) => {
-      item.price = item.mockPrice;
-      item.totalPrice = item.mockPrice;
-      item.matchedProductName = null;
-      item.sku = null;
-      item.packageSize = null;
-      item.packageCount = null;
-      item.image = null;
-      item.sourceLabel = "Áætlað verð";
-      item.estimated = true;
-      item.isEstimated = true;
-      item.kronanProduct = null;
-    });
-    recalculatePlanTotal(plan);
-    state.pricingStatus = "error";
-    state.pricingError = "Náði ekki að sækja verð, sýni áætlað verð.";
+    markPlanPricesEstimated(plan);
     console.log("[Main app Krónan] final rendered shopping list:", plan.shoppingList);
     console.log("[TRACE]", traceId, "finalShoppingListUsedForRender", plan.shoppingList);
     if (isCurrentResultPlan(plan)) renderResults();
@@ -2304,6 +2421,12 @@ function renderDislikesStep() {
   const selectedLabels = normalizeAvoidSelections(state.foodDislikes);
   const presetOptions = AVOID_QUICK_CHIPS;
   const body = `
+    ${state.generationError ? `
+      <div class="budget-note" style="margin-bottom:14px;">
+        ${escapeHtml(state.generationError)}
+        <button class="meal-action-btn" type="button" id="retryGenerateBtn" style="margin-left:8px;">Reyna aftur</button>
+      </div>
+    ` : ""}
     <p style="color:var(--muted); margin-bottom:18px;">Veldu mat sem þú vilt ekki fá í planinu. Ef þetta er ofnæmi, vertu sérstaklega viss um að fara yfir innihaldsefni.</p>
     <div class="pantry-tags" id="avoidTags" style="margin-bottom:14px;">
       ${selectedLabels.map((label) => `
@@ -2380,21 +2503,61 @@ function renderDislikesStep() {
     }
   };
 
-  document.getElementById("nextBtn").onclick = () => {
-    state.foodDislikes = normalizeAvoidSelections(state.foodDislikes);
-    saveFoodDislikes();
-    state.plan = generatePlan();
-    resetResultViewState();
-    state.step = 7;
-    state.currentView = "results";
-    state.pricingStatus = "idle";
-    state.pricingError = null;
-    state.replacementMessage = null;
-    console.log("[PRICE FLOW] plan generated", state.plan.shoppingList);
-    render();
-    scrollToPageTop();
-    hydrateKronanPrices(state.plan);
-  };
+  async function handleGeneratePlanClick(event) {
+    if (state.isGeneratingPlan) return;
+    state.isGeneratingPlan = true;
+    state.generationError = null;
+    if (event?.currentTarget) event.currentTarget.disabled = true;
+    showPlanLoader();
+    const startedAt = Date.now();
+
+    try {
+      await new Promise((resolve) => requestAnimationFrame(resolve));
+      state.foodDislikes = normalizeAvoidSelections(state.foodDislikes);
+      saveFoodDislikes();
+      state.pricingStatus = "idle";
+      state.pricingError = null;
+      const plan = generatePlan();
+      console.log("[PRICE FLOW] plan generated", plan.shoppingList);
+      if (!plan.error) {
+        try {
+          await withTimeout(hydrateKronanPrices(plan), 9000, "Price hydration timed out");
+        } catch (priceError) {
+          console.warn("[PRICE FLOW] price hydration timed out or failed before results render:", priceError);
+          pricingRequest.id += 1;
+          markPlanPricesEstimated(plan);
+        }
+      }
+      const elapsed = Date.now() - startedAt;
+      if (elapsed < 2500) await wait(2500 - elapsed);
+
+      state.plan = plan;
+      resetResultViewState();
+      state.step = 7;
+      state.currentView = "results";
+      if (plan.error) state.pricingStatus = "idle";
+      if (state.pricingStatus === "loading") state.pricingStatus = "ready";
+      if (state.pricingStatus !== "error") state.pricingError = null;
+      state.replacementMessage = null;
+      hidePlanLoader();
+      render();
+      scrollToPageTop();
+    } catch (error) {
+      console.error("Failed to generate plan:", error);
+      hidePlanLoader();
+      state.generationError = "Ekki tókst að búa til matarplan. Reyndu aftur.";
+      renderDislikesStep();
+    } finally {
+      state.isGeneratingPlan = false;
+    }
+  }
+
+  const retryGenerateBtn = document.getElementById("retryGenerateBtn");
+  if (retryGenerateBtn) {
+    retryGenerateBtn.onclick = handleGeneratePlanClick;
+  }
+
+  document.getElementById("nextBtn").onclick = handleGeneratePlanClick;
 }
 
 function tagLabels(tags) {
