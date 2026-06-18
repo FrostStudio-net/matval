@@ -3173,10 +3173,24 @@ function renderMealRowHtml(meal, dayIndex, slot) {
 
 function bindMealRowInteractions(root = document) {
   root.querySelectorAll("[data-recipe]").forEach((el) => {
-    el.onclick = () => openRecipeModal(el.dataset.recipe, {
-      dayIndex: el.dataset.recipeDay !== undefined ? Number(el.dataset.recipeDay) : null,
-      slot: el.dataset.recipeSlot || null,
-    });
+    el.onclick = (event) => {
+      event.stopPropagation();
+      openRecipeModal(el.dataset.recipe, {
+        dayIndex: el.dataset.recipeDay !== undefined ? Number(el.dataset.recipeDay) : null,
+        slot: el.dataset.recipeSlot || null,
+      });
+    };
+  });
+  root.querySelectorAll("[data-meal-row]").forEach((row) => {
+    row.onclick = (event) => {
+      if (event.target instanceof Element && event.target.closest("button")) return;
+      const recipeEl = row.querySelector("[data-recipe]");
+      if (!recipeEl) return;
+      openRecipeModal(recipeEl.dataset.recipe, {
+        dayIndex: recipeEl.dataset.recipeDay !== undefined ? Number(recipeEl.dataset.recipeDay) : null,
+        slot: recipeEl.dataset.recipeSlot || null,
+      });
+    };
   });
   root.querySelectorAll("[data-replace-day]").forEach((el) => {
     el.onclick = (event) => {
@@ -3604,7 +3618,7 @@ function renderResults() {
       renderResults();
     };
   });
-  document.querySelectorAll("[data-day-index]").forEach((el) => {
+  document.querySelectorAll(".mobile-day-tab[data-day-index]").forEach((el) => {
     el.onclick = () => {
       state.activeResultDay = Number(el.dataset.dayIndex);
       renderResults();
