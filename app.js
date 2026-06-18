@@ -2455,18 +2455,28 @@ function initApp() {
     }
   });
 
-  runDietaryAssertions();
-  runAvoidFoodAssertions();
-  runWeeklyPlanningAssertions();
-  initializeAuthState().then(() => {
-    if (state.currentView === "savedPlans") renderMyPlans();
-    if (state.currentView === "results") renderResults();
-  });
   state.step = -1;
   state.currentView = "home";
   state.homeFresh = true;
   render();
   scrollToPageTop();
+
+  window.setTimeout(() => {
+    try {
+      runDietaryAssertions();
+      runAvoidFoodAssertions();
+      runWeeklyPlanningAssertions();
+    } catch (error) {
+      console.warn("[MATVAL STARTUP CHECKS FAILED]", error);
+    }
+
+    initializeAuthState().then(() => {
+      if (state.currentView === "savedPlans") renderMyPlans();
+      if (state.currentView === "results") renderResults();
+    }).catch((error) => {
+      console.warn("[Supabase auth] startup initialization failed:", error);
+    });
+  }, 0);
 }
 
 function showStartupError(error) {
@@ -2572,14 +2582,19 @@ function renderHero() {
       </div>
     </section>
   `;
-  document.getElementById("startBtn").onclick = () => { startNewWizard(); };
+  const startBtn = document.getElementById("startBtn");
+  if (startBtn) startBtn.onclick = () => { startNewWizard(); };
   const lastPlanBtn = document.getElementById("lastPlanBtn");
   if (lastPlanBtn) {
     lastPlanBtn.onclick = () => { navigateToStep(7); };
   }
-  document.getElementById("learnBtn").onclick = () => {
-    document.getElementById("hvernig-virkar-thetta").scrollIntoView({ behavior: "smooth" });
-  };
+  const learnBtn = document.getElementById("learnBtn");
+  const howItWorks = document.getElementById("hvernig-virkar-thetta");
+  if (learnBtn && howItWorks) {
+    learnBtn.onclick = () => {
+      howItWorks.scrollIntoView({ behavior: "smooth" });
+    };
+  }
 }
 
 function quizShell(stepLabel, title, bodyHtml, { nextLabel = "Áfram", nextDisabled = false, showBack = true, cardClass = "", bodyClass = "", allowInnerScroll = false } = {}) {
