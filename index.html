@@ -23,6 +23,7 @@
     --card:#FFFDF7;
     --muted:#7A7367;
     --radius: 12px;
+    --header-height:79px;
   }
   *{ box-sizing: border-box; }
   html,body{ margin:0; padding:0; }
@@ -107,7 +108,12 @@
   }
 
   /* Hero */
-  .hero{ padding: 72px 0 56px; }
+  .hero{
+    min-height:calc(100dvh - var(--header-height));
+    padding:0;
+    display:flex;
+    align-items:center;
+  }
   .hero .eyebrow{
     font-family:var(--font-body); font-size:0.8rem; font-weight:600;
     color: var(--rust); text-transform: uppercase; letter-spacing: 0.12em;
@@ -124,6 +130,7 @@
     margin-top: 22px; font-size: 1.15rem; max-width: 46ch; color:#3B453E;
   }
   .hero-grid{
+    width:100%;
     display:grid; grid-template-columns: 1.1fr 0.9fr; gap: 48px; align-items:center;
   }
   @media (max-width: 860px){ .hero-grid{ grid-template-columns: 1fr; } }
@@ -343,17 +350,25 @@
     border-bottom-right-radius:10px;
   }
   .day-cell-check{
+    width:16px;
     height:16px;
-    line-height:16px;
-    font-size:0.78rem;
-    color:transparent;
+    display:inline-flex;
+    align-items:center;
+    justify-content:center;
+    flex-shrink:0;
+  }
+  .day-check-icon{
+    width:14px;
+    height:14px;
+    opacity:0;
+    object-fit:contain;
   }
   .day-cell.selected{
     background:rgba(63,93,69,0.1);
     color:var(--moss-dark);
     box-shadow:none;
   }
-  .day-cell.selected .day-cell-check{ color:var(--moss); }
+  .day-cell.selected .day-check-icon{ opacity:1; }
   .meal-selector{
     display:grid;
     grid-template-columns:repeat(3, minmax(0, 1fr));
@@ -663,6 +678,7 @@
   }
 
   @media (max-width: 700px){
+    :root{ --header-height:69px; }
     .wrap{ padding: 0 16px; }
     header.site{ padding: 10px 0 12px; }
     header.site .wrap{
@@ -677,7 +693,10 @@
     nav.steps{ display:none !important; }
     .mobile-progress{ display:none !important; }
 
-    .hero{ padding: 42px 0 36px; }
+    .hero{
+      min-height:calc(100dvh - var(--header-height));
+      padding:0;
+    }
     .hero h1{ font-size: clamp(2.1rem, 11vw, 3rem); max-width: 12ch; }
     .hero p.lead{ font-size:1rem; }
     .hero-grid{ gap:28px; }
@@ -963,9 +982,11 @@
     }
     .step-days-card .day-cell-check{
       width:14px;
-      height:auto;
-      line-height:1;
-      font-size:0.8rem;
+      height:14px;
+    }
+    .step-days-card .day-check-icon{
+      width:12px;
+      height:12px;
     }
     .step-days-card .day-cell.selected{
       border-color:var(--moss);
@@ -1127,7 +1148,11 @@
     }
     body.quiz-active .step-days-card .day-cell-check{
       width:10px;
-      font-size:0.72rem;
+      height:10px;
+    }
+    body.quiz-active .step-days-card .day-check-icon{
+      width:9px;
+      height:9px;
     }
     body.quiz-active .step-days-card .quiz-step-label{
       font-size:0.68rem;

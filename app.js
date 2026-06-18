@@ -33,8 +33,10 @@ const ICONS = {
   calendarActive: "/public/icons/icons8-calendar-active-96.png",
   cart: "/public/icons/icons8-shopping-cart-96.png",
   cartActive: "/public/icons/icons8-shopping-active-cart-96.png",
-  recipes: "/public/icons/icons8-carrot-96.png",
+  carrot: "/public/icons/icons8-carrot-96.png",
   leftovers: "/public/icons/icons8-calendar-96.png",
+  checkmark: "/public/icons/icons8-checkmark-96.png",
+  fire: "/public/icons/icons8-fire-96.png",
 };
 
 function iconImg(iconKey, alt = "", className = "ui-icon") {
@@ -56,7 +58,7 @@ const GOALS = [
   { id: "high_protein", label: "Próteinríkt", icon: "protein" },
   { id: "dairy_free", label: "Mjólkurlaust", icon: "dairyfree" },
   { id: "vegan", label: "Vegan", icon: "vegan" },
-  { id: "vegetarian", label: "Grænmetisfæði", icon: "vegetarian" },
+  { id: "vegetarian", label: "Grænmetisfæði", icon: "carrot" },
   { id: "quick", label: "Fljótlegur matur", icon: "quick" },
   { id: "family", label: "Fjölskyldumatur", icon: "family" },
 ];
@@ -1931,7 +1933,7 @@ function renderDaysStep() {
       <div class="week-selector" role="group" aria-label="Veldu daga">
         ${WEEK_DAYS.map((day) => `
           <button class="day-cell ${selectedDays.includes(day.id) ? "selected" : ""}" type="button" data-day="${day.id}" aria-pressed="${selectedDays.includes(day.id)}">
-            <span class="day-cell-check">✓</span>
+            <span class="day-cell-check">${iconImg("checkmark", "", "ui-icon day-check-icon")}</span>
             <span>${day.short}</span>
           </button>
         `).join("")}
@@ -2334,23 +2336,26 @@ function renderResults() {
     `;
   }).join("");
   const renderDayCard = (day, i, { mobile = false } = {}) => `
-    <div class="day-card ${mobile ? "mobile-day-card" : ""}">
-      <h3>${dayNameForPlanDay(plan, i)} <span class="daynum">DAGUR ${String(i + 1).padStart(2, "0")}</span></h3>
-      ${Object.entries(day).map(([type, meal]) => `
-        <div class="meal-row">
-          <div class="meal-type">${type}</div>
-          <div style="flex:1;">
-            <div class="meal-name" data-recipe="${meal.recipe.id}" data-recipe-day="${i}" data-recipe-slot="${type}">${meal.recipe.name}</div>
-            <div class="meal-tags">${tagLabels(meal.recipe.tags.slice(0,3))} · ${meal.recipe.calories} kcal · ${meal.recipe.protein}g prótein</div>
-            ${meal.leftover ? `<div class="leftover-note">${iconImg("leftovers")} Afgangaplan: notar afganga frá fyrri degi</div>` : ""}
-            <div class="meal-actions">
-              <button class="meal-action-btn" data-replace-day="${i}" data-replace-slot="${type}">↻ Skipta út</button>
-            </div>
+  <div class="day-card ${mobile ? "mobile-day-card" : ""}">
+    <h3>${dayNameForPlanDay(plan, i)} <span class="daynum">DAGUR ${String(i + 1).padStart(2, "0")}</span></h3>
+    ${Object.entries(day).map(([type, meal]) => `
+      <div class="meal-row">
+        <div class="meal-type">${type}</div>
+        <div style="flex:1;">
+          <div class="meal-name" data-recipe="${meal.recipe.id}" data-recipe-day="${i}" data-recipe-slot="${type}">${meal.recipe.name}</div>
+          <div class="meal-tags">${tagLabels(meal.recipe.tags.slice(0,3))} · ${meal.recipe.calories} kcal · ${meal.recipe.protein}g prótein</div>
+          ${meal.leftover ? `<div class="leftover-note">${iconImg("leftovers")} Afgangaplan: notar afganga frá fyrri degi</div>` : ""}
+          <div class="meal-actions">
+            <button class="meal-action-btn" data-replace-day="${i}" data-replace-slot="${type}" style="display: inline-flex; align-items: center; gap: 4px;">
+              <img src="/public/icons/icons8-redo-96.png" alt="Redo" style="width: 14px; height: 14px;" />
+              Skipta út
+            </button>
           </div>
         </div>
-      `).join("")}
-    </div>
-  `;
+      </div>
+    `).join("")}
+  </div>
+`;
   const groceryGroupsHtml = groupedShoppingList.map((group) => `
     <div class="shopping-group">
       <div class="shopping-group-title">${group.category}</div>
@@ -2557,7 +2562,7 @@ function openRecipeModal(recipeId, context = {}) {
           <h3>${escapeHtml(recipe.name)}</h3>
           <div class="meta-row">
             <span>${iconImg("quick")} <strong>${recipe.time} mín</strong></span>
-            <span>${iconImg("healthy")} <strong>${recipe.calories} kcal</strong></span>
+            <span>${iconImg("fire")} <strong>${recipe.calories} kcal</strong></span>
             <span>${iconImg("protein")} <strong>${recipe.protein}g</strong> prótein</span>
           </div>
           <div class="recipe-price">${iconImg("budget")} <strong>${formatKr(recipePrice(recipe, state.people))}</strong> fyrir ${state.people} ${state.people === 1 ? "mann" : "manns"}</div>
