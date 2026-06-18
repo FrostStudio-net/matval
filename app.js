@@ -1415,6 +1415,45 @@ function refreshPlanTotals(plan) {
   });
 }
 
+function updateReplacementMessageDom(message) {
+  let messageEl = document.getElementById("replacementMessage");
+  if (!message) {
+    if (messageEl) messageEl.remove();
+    return;
+  }
+  if (!messageEl) {
+    const resultActions = document.querySelector(".result-actions");
+    if (!resultActions) return;
+    resultActions.insertAdjacentHTML("afterend", `<div id="replacementMessage" class="budget-note" style="margin:10px 0 16px;"></div>`);
+    messageEl = document.getElementById("replacementMessage");
+  }
+  messageEl.textContent = message;
+}
+
+function updateMealRowsInDom(plan, dayIndex, slot) {
+  const meal = plan?.days?.[dayIndex]?.[slot];
+  if (!meal) return;
+  document.querySelectorAll("[data-meal-row]").forEach((row) => {
+    if (Number(row.dataset.dayIndex) !== dayIndex || row.dataset.slot !== slot) return;
+    const wrapper = document.createElement("div");
+    wrapper.innerHTML = renderMealRowHtml(meal, dayIndex, slot).trim();
+    const nextRow = wrapper.firstElementChild;
+    if (!nextRow) return;
+    row.replaceWith(nextRow);
+    bindMealRowInteractions(nextRow);
+  });
+}
+
+function updateResultTotalsDom(plan) {
+  if (!plan || plan.error) return;
+  document.querySelectorAll("[data-plan-total]").forEach((el) => {
+    el.textContent = formatKr(plan.totalPrice);
+  });
+  document.querySelectorAll("[data-shopping-count]").forEach((el) => {
+    el.textContent = `${plan.shoppingList.length} ${plan.shoppingList.length === 1 ? "vara" : "vörur"}`;
+  });
+}
+
 function replaceMeal(dayIndex, slot) {
   const plan = state.plan;
   if (!plan || plan.error || !plan.days[dayIndex] || !plan.days[dayIndex][slot]) return;
@@ -1425,7 +1464,7 @@ function replaceMeal(dayIndex, slot) {
   if (!replacement) {
     console.warn("[Meal replacement] no replacement found", { dayIndex, slot, currentRecipe: currentRecipe.id });
     state.replacementMessage = "Engin önnur uppskrift fannst fyrir þessa máltíð.";
-    renderResults();
+    updateReplacementMessageDom(state.replacementMessage);
     return;
   }
 
@@ -1440,7 +1479,8 @@ function replaceMeal(dayIndex, slot) {
     sourceRecipeId: replacement.usesLeftovers || null,
   };
 
-  if (slot === "kvöldmatur" && plan.days[dayIndex + 1]?.hádegismatur?.sourceRecipeId === currentRecipe.id) {
+  const nextLunchChanged = slot === "kvöldmatur" && plan.days[dayIndex + 1]?.hádegismatur?.sourceRecipeId === currentRecipe.id;
+  if (nextLunchChanged) {
     plan.days[dayIndex + 1].hádegismatur = {
       ...plan.days[dayIndex + 1].hádegismatur,
       leftover: false,
@@ -1454,9 +1494,12 @@ function replaceMeal(dayIndex, slot) {
   state.savedPlanNotice = null;
   state.pricingStatus = "idle";
   state.pricingError = null;
-  renderResults();
   if (PRICE_MODE === "live") hydrateKronanPrices(plan);
   else useEstimatedPricing(plan);
+  updateMealRowsInDom(plan, dayIndex, slot);
+  if (nextLunchChanged) updateMealRowsInDom(plan, dayIndex + 1, "hádegismatur");
+  updateResultTotalsDom(plan);
+  updateReplacementMessageDom(null);
 }
 
 function ingredientAllowedForGoals(key, goals) {
@@ -3020,6 +3063,40 @@ function tagLabels(tags) {
   return tags.filter((t) => APP_TAGS[t]).map((t) => APP_TAGS[t]).join(" · ");
 }
 
+function renderMealRowHtml(meal, dayIndex, slot) {
+  return `
+      <div class="meal-row" data-meal-row data-day-index="${dayIndex}" data-slot="${escapeHtml(slot)}">
+        <div class="meal-type">${escapeHtml(slot)}</div>
+        <div style="flex:1;">
+          <div class="meal-name" data-recipe="${meal.recipe.id}" data-recipe-day="${dayIndex}" data-recipe-slot="${escapeHtml(slot)}">${escapeHtml(meal.recipe.name)}</div>
+          <div class="meal-tags">${tagLabels(meal.recipe.tags.slice(0,3))} · ${meal.recipe.calories} kcal · ${meal.recipe.protein}g prótein</div>
+          ${meal.leftover ? `<div class="leftover-note">${iconImg("leftovers")} Afgangaplan: notar afganga frá fyrri degi</div>` : ""}
+          <div class="meal-actions">
+            <button class="meal-action-btn" data-replace-day="${dayIndex}" data-replace-slot="${escapeHtml(slot)}" style="display: inline-flex; align-items: center; gap: 4px;">
+              <img src="/public/icons/icons8-redo-96.png" alt="" aria-hidden="true" style="width: 14px; height: 14px;" />
+              Skipta út
+            </button>
+          </div>
+        </div>
+      </div>
+    `;
+}
+
+function bindMealRowInteractions(root = document) {
+  root.querySelectorAll("[data-recipe]").forEach((el) => {
+    el.onclick = () => openRecipeModal(el.dataset.recipe, {
+      dayIndex: el.dataset.recipeDay !== undefined ? Number(el.dataset.recipeDay) : null,
+      slot: el.dataset.recipeSlot || null,
+    });
+  });
+  root.querySelectorAll("[data-replace-day]").forEach((el) => {
+    el.onclick = (event) => {
+      event.stopPropagation();
+      replaceMeal(Number(el.dataset.replaceDay), el.dataset.replaceSlot);
+    };
+  });
+}
+
 function formatDate(value) {
   if (!value) return "";
   return new Date(value).toLocaleDateString("is-IS", { year: "numeric", month: "short", day: "numeric" });
@@ -3251,22 +3328,7 @@ function renderResults() {
   const renderDayCard = (day, i, { mobile = false } = {}) => `
   <div class="day-card ${mobile ? "mobile-day-card" : ""}">
     <h3>${dayNameForPlanDay(plan, i)} <span class="daynum">DAGUR ${String(i + 1).padStart(2, "0")}</span></h3>
-    ${Object.entries(day).map(([type, meal]) => `
-      <div class="meal-row">
-        <div class="meal-type">${type}</div>
-        <div style="flex:1;">
-          <div class="meal-name" data-recipe="${meal.recipe.id}" data-recipe-day="${i}" data-recipe-slot="${type}">${meal.recipe.name}</div>
-          <div class="meal-tags">${tagLabels(meal.recipe.tags.slice(0,3))} · ${meal.recipe.calories} kcal · ${meal.recipe.protein}g prótein</div>
-          ${meal.leftover ? `<div class="leftover-note">${iconImg("leftovers")} Afgangaplan: notar afganga frá fyrri degi</div>` : ""}
-          <div class="meal-actions">
-            <button class="meal-action-btn" data-replace-day="${i}" data-replace-slot="${type}" style="display: inline-flex; align-items: center; gap: 4px;">
-              <img src="/public/icons/icons8-redo-96.png" alt="Redo" style="width: 14px; height: 14px;" />
-              Skipta út
-            </button>
-          </div>
-        </div>
-      </div>
-    `).join("")}
+    ${Object.entries(day).map(([type, meal]) => renderMealRowHtml(meal, i, type)).join("")}
   </div>
 `;
   const groceryGroupsHtml = groupedShoppingList.map((group) => `
@@ -3296,8 +3358,8 @@ function renderResults() {
             <h3>Innkaupalisti — Krónan</h3>
             <div class="shopping-source-note">${shoppingSourceNote}</div>
           </div>
-          <div class="mobile-grocery-total mono">${formatKr(plan.totalPrice)}</div>
-          <div class="mobile-grocery-count">${plan.shoppingList.length} ${plan.shoppingList.length === 1 ? "vara" : "vörur"}</div>
+          <div class="mobile-grocery-total mono" data-plan-total>${formatKr(plan.totalPrice)}</div>
+          <div class="mobile-grocery-count" data-shopping-count>${plan.shoppingList.length} ${plan.shoppingList.length === 1 ? "vara" : "vörur"}</div>
           <button class="meal-action-btn refresh-prices-btn" type="button">Uppfæra verð</button>
         </div>
       ` : `
@@ -3309,7 +3371,7 @@ function renderResults() {
       ${groceryGroupsHtml}
       ${state.pantry.length ? `<div style="margin-top:10px; font-size:0.8rem; color:var(--muted);">✓ ${state.pantry.length} vara/vörur frá "til heima" eru ekki inni á listanum.</div>` : ""}
       ${estimatedCount ? `<div class="budget-note" style="margin-top:10px;">${estimatedCount} vara/vörur eru með áætluðu verði.</div>` : ""}
-      <div class="total-row"><span>Heildarverð</span><span>${formatKr(plan.totalPrice)}</span></div>
+      <div class="total-row"><span>Heildarverð</span><span data-plan-total>${formatKr(plan.totalPrice)}</span></div>
       <div class="budget-bar"><div class="budget-bar-fill ${overBudget ? "over" : ""}" style="width:${pct}%"></div></div>
       <div class="budget-note">
         ${overBudget
@@ -3355,7 +3417,7 @@ function renderResults() {
             <button class="save-toast-link" type="button" id="viewSavedPlansBtn">Skoða í Mín plön</button>
           </div>
         ` : ""}
-        ${replacementMessage ? `<div class="budget-note" style="margin:10px 0 16px;">${escapeHtml(replacementMessage)}</div>` : ""}
+        ${replacementMessage ? `<div id="replacementMessage" class="budget-note" style="margin:10px 0 16px;">${escapeHtml(replacementMessage)}</div>` : ""}
 
         <div class="mobile-only-result">
           <div class="mobile-result-tabs" role="tablist" aria-label="Niðurstaða">
@@ -3459,18 +3521,7 @@ function renderResults() {
       renderResults();
     };
   });
-  document.querySelectorAll("[data-recipe]").forEach((el) => {
-    el.onclick = () => openRecipeModal(el.dataset.recipe, {
-      dayIndex: el.dataset.recipeDay !== undefined ? Number(el.dataset.recipeDay) : null,
-      slot: el.dataset.recipeSlot || null,
-    });
-  });
-  document.querySelectorAll("[data-replace-day]").forEach((el) => {
-    el.onclick = (event) => {
-      event.stopPropagation();
-      replaceMeal(Number(el.dataset.replaceDay), el.dataset.replaceSlot);
-    };
-  });
+  bindMealRowInteractions(document);
   renderAuthModal();
 }
 
