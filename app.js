@@ -277,6 +277,7 @@ const state = {
   authEmailSent: false,
   authEmail: "",
   authMessage: null,
+  authLoadingAction: null,
   currentUser: null,
   cloudPlans: [],
   cloudPlansLoading: false,
@@ -1594,9 +1595,10 @@ async function initializeAuthState() {
       await refreshCloudPlans({ force: true });
       await migratePendingLocalPlanToCloud();
       if (state.authModalVisible) {
-        state.authModalVisible = false;
-        state.authMessage = null;
-        state.authEmailSent = false;
+          state.authModalVisible = false;
+          state.authMessage = null;
+          state.authEmailSent = false;
+          state.authLoadingAction = null;
       }
     } else {
       state.cloudPlans = [];
@@ -2216,6 +2218,8 @@ function renderAuthModal() {
 
   setBlockingScreenActive("auth-screen", true);
   const supabaseConfigured = supabaseAvailable();
+  const authLoading = Boolean(state.authLoadingAction);
+  const loadingSpinner = `<span class="auth-btn-spinner" aria-hidden="true"></span>`;
   root.innerHTML = `
     <div class="auth-modal-overlay is-visible" role="presentation">
       <section class="auth-modal" role="dialog" aria-modal="true" aria-labelledby="authModalTitle">
@@ -2229,33 +2233,33 @@ function renderAuthModal() {
             <div class="auth-email-pill">${escapeHtml(state.authEmail)}</div>
             <div class="auth-success-helper">Finnurðu ekki póstinn? Athugaðu ruslpóst eða promotions.</div>
             <div class="auth-modal-actions auth-success-actions">
-              <button class="btn auth-provider-btn" id="resendMagicLinkBtn" type="button">
-                ${iconImg("send", "", "ui-icon auth-btn-icon")}
-                <span>Senda aftur</span>
+              <button class="btn auth-provider-btn" id="resendMagicLinkBtn" type="button" ${authLoading ? "disabled" : ""}>
+                ${state.authLoadingAction === "email" ? loadingSpinner : iconImg("send", "", "ui-icon auth-btn-icon")}
+                <span>${state.authLoadingAction === "email" ? "Sendi..." : "Senda aftur"}</span>
               </button>
-              <button class="btn ghost" id="skipAuthBtn" type="button">Ekki núna</button>
+              <button class="btn ghost" id="skipAuthBtn" type="button" ${authLoading ? "disabled" : ""}>Ekki núna</button>
             </div>
           </div>
         ` : `
           <div class="auth-modal-actions">
-            <button class="btn auth-provider-btn" id="googleLoginBtn" type="button">
-              ${iconImg("google", "", "ui-icon auth-btn-icon")}
-              <span>Halda áfram með Google</span>
+            <button class="btn auth-provider-btn" id="googleLoginBtn" type="button" ${authLoading ? "disabled" : ""}>
+              ${state.authLoadingAction === "google" ? loadingSpinner : iconImg("google", "", "ui-icon auth-btn-icon")}
+              <span>${state.authLoadingAction === "google" ? "Opna Google..." : "Halda áfram með Google"}</span>
             </button>
-            <button class="btn secondary auth-provider-btn" id="showEmailLoginBtn" type="button">
+            <button class="btn secondary auth-provider-btn" id="showEmailLoginBtn" type="button" ${authLoading ? "disabled" : ""}>
               ${iconImg("email", "", "ui-icon auth-btn-icon")}
               <span>Vista með netfangi</span>
             </button>
             ${state.authEmailVisible ? `
               <div class="auth-email-row">
-                <input id="authEmailInput" type="email" autocomplete="email" placeholder="netfang@dæmi.is" value="${escapeHtml(state.authEmail)}">
-                <button class="btn auth-provider-btn" id="sendMagicLinkBtn" type="button">
-                  ${iconImg("send", "", "ui-icon auth-btn-icon")}
-                  <span>Senda</span>
+                <input id="authEmailInput" type="email" autocomplete="email" placeholder="netfang@dæmi.is" value="${escapeHtml(state.authEmail)}" ${authLoading ? "disabled" : ""}>
+                <button class="btn auth-provider-btn" id="sendMagicLinkBtn" type="button" ${authLoading ? "disabled" : ""}>
+                  ${state.authLoadingAction === "email" ? loadingSpinner : iconImg("send", "", "ui-icon auth-btn-icon")}
+                  <span>${state.authLoadingAction === "email" ? "Sendi..." : "Senda vistunarhlekk"}</span>
                 </button>
               </div>
             ` : ""}
-            <button class="btn ghost" id="skipAuthBtn" type="button">Ekki núna</button>
+            <button class="btn ghost" id="skipAuthBtn" type="button" ${authLoading ? "disabled" : ""}>Ekki núna</button>
           </div>
           <div class="auth-modal-note">
             ${state.authMessage ? escapeHtml(state.authMessage) : supabaseConfigured
@@ -2268,9 +2272,11 @@ function renderAuthModal() {
   `;
 
   document.getElementById("skipAuthBtn").onclick = () => {
+    if (state.authLoadingAction) return;
     state.authModalVisible = false;
     state.authEmailVisible = false;
     state.authEmailSent = false;
+    state.authLoadingAction = null;
     state.authMessage = null;
     state.savePromptDismissed = true;
     render();
@@ -2290,10 +2296,14 @@ function renderAuthModal() {
   if (googleLoginBtn) googleLoginBtn.onclick = async () => {
     try {
       if (!matvalAuth()?.signInWithGoogle) throw new Error("Supabase auth is not loaded.");
+      state.authLoadingAction = "google";
+      state.authMessage = null;
+      renderAuthModal();
       localStorage.setItem("matval.pendingCloudSave", state.plan ? "1" : "");
       await matvalAuth().signInWithGoogle();
     } catch (error) {
       console.error("[Supabase auth] Google login failed:", error);
+      state.authLoadingAction = null;
       state.authMessage = error.message || "Innskráning mistókst.";
       renderAuthModal();
     }
@@ -2323,15 +2333,20 @@ function renderAuthModal() {
           return;
         }
         if (!matvalAuth()?.signInWithEmail) throw new Error("Supabase auth is not loaded.");
+        state.authLoadingAction = "email";
+        state.authMessage = null;
+        renderAuthModal();
         localStorage.setItem("matval.pendingCloudSave", state.plan ? "1" : "");
         await matvalAuth().signInWithEmail(state.authEmail.trim());
         state.authEmail = state.authEmail.trim();
         state.authEmailVisible = false;
         state.authEmailSent = true;
+        state.authLoadingAction = null;
         state.authMessage = null;
         renderAuthModal();
       } catch (error) {
         console.error("[Supabase auth] magic link failed:", error);
+        state.authLoadingAction = null;
         state.authMessage = error.message || "Náði ekki að senda innskráningarhlekk.";
         renderAuthModal();
       }
@@ -2934,6 +2949,7 @@ function renderDislikesStep() {
         state.authModalVisible = false;
         state.authEmailVisible = false;
         state.authEmailSent = false;
+        state.authLoadingAction = null;
         state.authMessage = null;
       }
       state.step = 7;
@@ -3361,6 +3377,7 @@ function renderResults() {
       state.authModalVisible = true;
       state.authEmailVisible = false;
       state.authEmailSent = false;
+      state.authLoadingAction = null;
       state.authMessage = null;
       renderAuthModal();
     };
