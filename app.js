@@ -286,6 +286,48 @@ let loaderStepIndex = 0;
 const PLAN_ERROR_MESSAGE = "Ekki tókst að búa til plan með þessum skilyrðum. Prófaðu hærra budget eða færri takmarkanir.";
 const AVOID_PLAN_ERROR_MESSAGE = "Engin uppskrift fannst sem passar við þessar takmarkanir. Prófaðu að fjarlægja eitt atriði úr Forðast.";
 const IS_BROWSER = typeof window !== "undefined" && typeof document !== "undefined";
+const VEGETARIAN_BLOCKED_INGREDIENT_KEYS = new Set([
+  "chicken_breast",
+  "ground_beef",
+  "pork",
+  "lamb",
+  "salmon",
+  "tuna",
+  "shrimp",
+  "prawns",
+  "shellfish",
+  "seafood",
+]);
+const VEGETARIAN_BLOCKED_WORDS = [
+  "chicken",
+  "kjúklingur",
+  "kjuklingur",
+  "beef",
+  "nautakjöt",
+  "nautakjot",
+  "hakk",
+  "pork",
+  "svín",
+  "svin",
+  "lamb",
+  "lambakjöt",
+  "lambakjot",
+  "meat",
+  "kjöt",
+  "kjot",
+  "fish",
+  "fiskur",
+  "salmon",
+  "lax",
+  "tuna",
+  "túnfiskur",
+  "tunfiskur",
+  "seafood",
+  "shellfish",
+  "skelfiskur",
+  "rækjur",
+  "raekjur",
+];
 
 function formatKr(amount) {
   const value = Number(amount) || 0;
@@ -537,6 +579,26 @@ function normalizeFoodText(value) {
     .replace(/[^a-z0-9æöüø\s]/gi, " ")
     .replace(/\s+/g, " ")
     .trim();
+}
+
+function ingredientBlockedForVegetarian(key) {
+  if (VEGETARIAN_BLOCKED_INGREDIENT_KEYS.has(key)) return true;
+  const product = APP_PRODUCTS[key];
+  const text = normalizeFoodText(`${key || ""} ${product?.name || ""}`);
+  return VEGETARIAN_BLOCKED_WORDS.some((word) => text.includes(normalizeFoodText(word)));
+}
+
+function recipeBlockedForVegetarian(recipe) {
+  if (!recipe) return true;
+  const recipeText = normalizeFoodText([
+    recipe.id,
+    recipe.name,
+    ...(recipe.tags || []),
+    ...(recipe.ingredients || []).map((ing) => `${ing.key} ${APP_PRODUCTS[ing.key]?.name || ""}`),
+  ].join(" "));
+
+  return (recipe.ingredients || []).some((ing) => ingredientBlockedForVegetarian(ing.key))
+    || VEGETARIAN_BLOCKED_WORDS.some((word) => recipeText.includes(normalizeFoodText(word)));
 }
 
 function customPantryKey(value) {
@@ -1369,14 +1431,16 @@ function ingredientAllowedForGoals(key, goals) {
   if (!meta) return false;
 
   if (selectedGoal(goals, "vegan") && !meta.isVegan) return false;
-  if (selectedGoal(goals, "vegetarian") && (!meta.isVegetarian || meta.containsMeat || meta.containsFish)) return false;
+  if (selectedGoal(goals, "vegetarian") && (!meta.isVegetarian || meta.containsMeat || meta.containsFish || ingredientBlockedForVegetarian(key))) return false;
   if (selectedGoal(goals, "dairy_free", "dairyfree") && meta.containsDairy) return false;
   return true;
 }
 
 function recipeAllowedForGoals(recipe, goals) {
   if (selectedGoal(goals, "vegan") && !recipe.tags.includes("vegan")) return false;
-  if (selectedGoal(goals, "vegetarian") && !(recipe.tags.includes("vegetarian") || recipe.tags.includes("vegan"))) return false;
+  if (selectedGoal(goals, "vegetarian") && (
+    !(recipe.tags.includes("vegetarian") || recipe.tags.includes("vegan")) || recipeBlockedForVegetarian(recipe)
+  )) return false;
   if (selectedGoal(goals, "dairy_free", "dairyfree") && !(recipe.tags.includes("dairy_free") || recipe.tags.includes("dairyfree"))) return false;
   if (recipeContainsDislikedFood(recipe)) return false;
 
@@ -3073,8 +3137,10 @@ function runDietaryAssertions() {
 
   const vegetarianPlan = generatePlan({ goals: ["vegetarian"], people: 2, days: 3, pantry: [], silentStats: true });
   const vegetarianKeys = planIngredientKeys(vegetarianPlan);
+  const vegetarianRecipeIds = vegetarianPlan.days.flatMap((day) => Object.values(day).map(({ recipe }) => recipe.id));
   console.assert(!vegetarianPlan.error, "vegetarian plan should be generated");
   console.assert(![...vegetarianKeys].some((key) => APP_INGREDIENT_META[key] && (APP_INGREDIENT_META[key].containsMeat || APP_INGREDIENT_META[key].containsFish)), "vegetarian plan must not include meat/fish");
+  console.assert(!vegetarianRecipeIds.some((id) => /(chicken|beef|salmon|tuna)/.test(id)), "vegetarian plan must not include chicken, beef, salmon, or tuna recipes");
 
   const dairyFreePlan = generatePlan({ goals: ["dairy_free"], people: 2, days: 3, pantry: [], silentStats: true });
   const dairyFreeKeys = planIngredientKeys(dairyFreePlan);
