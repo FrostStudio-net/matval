@@ -486,6 +486,7 @@ function showPlanLoader() {
 
   overlay.classList.add("is-visible");
   overlay.setAttribute("aria-hidden", "false");
+  setBlockingScreenActive("plan-loader", true);
 
   loaderStepIndex = 0;
   updatePlanLoaderStep(loaderSteps[0]);
@@ -506,6 +507,15 @@ function hidePlanLoader() {
 
   overlay.classList.remove("is-visible");
   overlay.setAttribute("aria-hidden", "true");
+  setBlockingScreenActive("plan-loader", false);
+}
+
+function setBlockingScreenActive(type, active) {
+  if (!IS_BROWSER) return;
+  document.body.classList.toggle(`${type}-active`, Boolean(active));
+  const hasBlockingScreen = document.body.classList.contains("plan-loader-active")
+    || document.body.classList.contains("auth-screen-active");
+  document.body.classList.toggle("blocking-screen-active", hasBlockingScreen);
 }
 
 function setQuizActive(active) {
@@ -2200,9 +2210,11 @@ function renderAuthModal() {
 
   if (!state.authModalVisible) {
     root.innerHTML = "";
+    setBlockingScreenActive("auth-screen", false);
     return;
   }
 
+  setBlockingScreenActive("auth-screen", true);
   const supabaseConfigured = supabaseAvailable();
   root.innerHTML = `
     <div class="auth-modal-overlay is-visible" role="presentation">
