@@ -3491,7 +3491,7 @@ function renderResults() {
           <div class="result-save-card">
             <div>
               <h3>Viltu opna þetta plan síðar?</h3>
-              <p>Vistaðu matarplanið og innkaupalistann svo þú getir komið aftur að því í símanum eða tölvunni.</p>
+              <p>Vistaðu matarplanið og innkaupalistann svo þú getir komið að því seinna.</p>
             </div>
             <div class="result-save-card-actions">
               <button class="btn" id="savePlanPromptBtn" type="button">Vista plan</button>
