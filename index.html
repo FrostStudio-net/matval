@@ -675,6 +675,9 @@
   .auth-modal{
     width:min(440px, 100%); border:1px solid rgba(36,79,53,0.14); border-radius:28px;
     background:var(--card); box-shadow:0 28px 80px rgba(18,59,38,0.18); padding:28px;
+    max-height:calc(100dvh - 48px - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+    overflow-y:auto;
+    -webkit-overflow-scrolling:touch;
   }
   .auth-modal h3{
     margin:0 0 8px; color:var(--dark-green); font-family:var(--font-heading);
@@ -695,8 +698,17 @@
   }
   .auth-modal-note{ margin-top:12px; color:var(--muted); font-size:0.86rem; line-height:1.45; }
   @media (max-width: 520px){
-    .auth-modal-overlay{ padding:16px; align-items:flex-end; }
-    .auth-modal{ border-radius:24px; padding:22px; }
+    .auth-modal-overlay{
+      align-items:center;
+      justify-content:center;
+      padding:calc(18px + env(safe-area-inset-top)) 16px calc(18px + env(safe-area-inset-bottom));
+    }
+    .auth-modal{
+      border-radius:24px;
+      padding:22px;
+      max-height:calc(100dvh - 36px - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+      transform:translateY(-4dvh);
+    }
     .auth-email-row{ grid-template-columns:1fr; }
     .result-save-card{ flex-direction:column; align-items:stretch; padding:16px; margin:14px 0 18px; }
     .result-save-card-actions{ display:grid; grid-template-columns:1fr; }
