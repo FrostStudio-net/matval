@@ -6,19 +6,17 @@ const APP_PRODUCTS = APP_GLOBAL.PRODUCTS || {};
 const APP_TAGS = APP_GLOBAL.TAGS || {};
 const APP_INGREDIENT_META = APP_GLOBAL.INGREDIENT_META || {};
 const APP_KRONAN_PRODUCT_MAPPING = APP_GLOBAL.KRONAN_PRODUCT_MAPPING || {};
-const PRICE_MODE = "estimated";
-// possible values:
-// "estimated" = use fallback estimated prices only
-// "cached" = use cached store data if available, fallback otherwise
-// "live" = manually fetch live Krónan data for debug/admin only
+const PRICE_MODE = APP_GLOBAL.MatvalPricingConfig?.PRICE_MODE || "estimated";
 
 const STORES = [
-  { id: "kronan", name: "Krónan", available: true, note: "Eina verslunin í boði núna", logo: "public/KRO_Logo_Emblem_2023.png" },
+  { id: "kronan", name: "Krónan", available: true, note: "Í boði núna", logo: "public/KRO_Logo_Emblem_2023.png" },
   { id: "bonus", name: "Bónus", available: false, note: "Kemur síðar", logo: "public/Bonus_The_Piglet_fc_RGB.webp"  },
   { id: "netto", name: "Nettó", available: false, note: "Kemur síðar", logo: "public/NETTÓ-LÓGÓ-01-1.jpg"  },
   { id: "hagkaup", name: "Hagkaup", available: false, note: "Kemur síðar", logo: "public/hagkaup-seeklogo.png"  },
-  { id: "costco", name: "Costco", available: false, note: "Kemur síðar", logo: "public/costco.png"  },
   { id: "pris", name: "Prís", available: false, note: "Kemur síðar", logo: "public/pris.png"  },
+  { id: "samkaup", name: "Samkaup", available: false, note: "Kemur síðar", logo: null },
+  { id: "iceland", name: "Iceland", available: false, note: "Kemur síðar", logo: null },
+  { id: "krambudin", name: "Krambúðin", available: false, note: "Kemur síðar", logo: null },
 ];
 
 const ICONS = {
@@ -290,6 +288,7 @@ const state = {
   cloudPlansError: null,
   isGeneratingPlan: false,
   generationError: null,
+  storeNotice: null,
   previousProgressRatio: 0,
   currentProgressRatio: 0,
   traceId: null,
@@ -596,6 +595,7 @@ function resetWizardDefaults() {
   state.pricingError = null;
   state.replacementMessage = null;
   state.generationError = null;
+  state.storeNotice = null;
   state.traceId = null;
 }
 
@@ -1313,6 +1313,16 @@ function estimateShoppingList(planDays, people, pantry) {
       packageSize: null,
       packageCount: null,
       image: null,
+      priceSource: "estimated",
+      source: "estimated",
+      sourceName: "Matval estimate",
+      storeName: state.store || null,
+      productNameMatched: null,
+      productId: null,
+      barcode: null,
+      observedAt: null,
+      fetchedAt: null,
+      confidence: "medium",
       sourceLabel: "Áætlað verð",
       estimated: true,
       isEstimated: true,
@@ -1530,7 +1540,7 @@ function replaceMeal(dayIndex, slot) {
   state.savedPlanNotice = null;
   state.pricingStatus = "idle";
   state.pricingError = null;
-  if (PRICE_MODE === "live") hydrateKronanPrices(plan);
+  if (shouldUseLivePricing()) hydrateKronanPrices(plan);
   else useEstimatedPricing(plan);
   updateMealRowsInDom(plan, dayIndex, slot);
   if (nextLunchChanged) updateMealRowsInDom(plan, dayIndex + 1, "hádegismatur");
@@ -1969,10 +1979,10 @@ function openSavedPlan(savedPlanId) {
   state.pricingStatus = "idle";
   state.pricingError = null;
   state.replacementMessage = null;
+  if (shouldUseLivePricing()) hydrateKronanPrices(state.plan);
+  else useEstimatedPricing(state.plan);
   render();
   scrollToPageTop();
-  if (PRICE_MODE === "live") hydrateKronanPrices(state.plan);
-  else useEstimatedPricing(state.plan);
 }
 
 async function duplicateSavedPlan(savedPlanId) {
@@ -2044,10 +2054,10 @@ function generateFromSavedPlan(savedPlanId) {
   state.pricingError = null;
   state.replacementMessage = null;
   console.log("[PRICE FLOW] plan generated", state.plan.shoppingList);
+  if (shouldUseLivePricing()) hydrateKronanPrices(state.plan);
+  else useEstimatedPricing(state.plan);
   render();
   scrollToPageTop();
-  if (PRICE_MODE === "live") hydrateKronanPrices(state.plan);
-  else useEstimatedPricing(state.plan);
 }
 
 function savedPlanStats(savedPlans) {
@@ -2175,22 +2185,42 @@ function recalculatePlanTotal(plan) {
   plan.totalPrice = plan.shoppingList.reduce((total, item) => total + (item.totalPrice ?? item.price ?? item.estimatedPrice ?? 0), 0);
 }
 
+function shouldUseLivePricing() {
+  return PRICE_MODE === "live" && Boolean(APP_GLOBAL.MatvalKronanPriceSource?.isDebugOrAdminPage?.());
+}
+
 function useEstimatedPricing(plan) {
   if (!plan || !Array.isArray(plan.shoppingList)) return;
-  plan.shoppingList.forEach((item) => {
-    item.price = item.mockPrice ?? item.price ?? item.totalPrice ?? 0;
-    item.totalPrice = item.mockPrice ?? item.totalPrice ?? item.price ?? 0;
-    item.matchedProductName = null;
-    item.sku = null;
-    item.packageSize = null;
-    item.packageCount = null;
-    item.image = null;
-    item.sourceLabel = "Áætlað verð";
-    item.source = "estimated";
-    item.estimated = true;
-    item.isEstimated = true;
-    item.kronanProduct = null;
-  });
+  const pricing = APP_GLOBAL.MatvalPricing?.priceShoppingListSync
+    ? APP_GLOBAL.MatvalPricing.priceShoppingListSync(plan.shoppingList, state.store)
+    : {
+        items: plan.shoppingList.map((item) => ({
+          ...item,
+          price: item.mockPrice ?? item.price ?? item.totalPrice ?? 0,
+          totalPrice: item.mockPrice ?? item.totalPrice ?? item.price ?? 0,
+          estimatedPrice: item.mockPrice ?? item.estimatedPrice ?? item.price ?? item.totalPrice ?? 0,
+          matchedProductName: null,
+          productNameMatched: null,
+          productId: null,
+          barcode: null,
+          sku: null,
+          packageSize: null,
+          packageCount: null,
+          image: null,
+          priceSource: "estimated",
+          sourceLabel: "Áætlað verð",
+          source: "estimated",
+          sourceName: "Matval estimate",
+          storeName: state.store || null,
+          observedAt: null,
+          fetchedAt: null,
+          confidence: "medium",
+          estimated: true,
+          isEstimated: true,
+          kronanProduct: null,
+        })),
+      };
+  plan.shoppingList = pricing.items;
   recalculatePlanTotal(plan);
   state.pricingStatus = "estimated";
   state.pricingError = null;
@@ -2206,8 +2236,17 @@ function markPlanPricesEstimated(plan, message = "Náði ekki að sækja verð, 
     item.packageSize = null;
     item.packageCount = null;
     item.image = null;
+    item.priceSource = "estimated";
     item.sourceLabel = "Áætlað verð";
     item.source = "estimated";
+    item.sourceName = "Matval estimate";
+    item.storeName = state.store || null;
+    item.productNameMatched = null;
+    item.productId = null;
+    item.barcode = null;
+    item.observedAt = null;
+    item.fetchedAt = null;
+    item.confidence = "low";
     item.estimated = true;
     item.isEstimated = true;
     item.kronanProduct = null;
@@ -2246,6 +2285,15 @@ function normalizeMatchedShoppingItem(matched, original) {
     mockPrice: original.mockPrice,
     image: matched && matched.image ? matched.image : null,
     source,
+    priceSource: source === "kronan" && !isEstimated ? "store" : "estimated",
+    sourceName: source === "kronan" && !isEstimated ? "Krónan" : "Matval estimate",
+    storeName: source === "kronan" && !isEstimated ? "Krónan" : state.store || null,
+    productNameMatched: matched ? matched.matchedProductName || matched.productName || matched.nameFromStore || null : null,
+    productId: matched && matched.sku ? matched.sku : null,
+    barcode: matched && matched.barcode ? matched.barcode : null,
+    observedAt: matched && matched.observedAt ? matched.observedAt : null,
+    fetchedAt: matched && matched.fetchedAt ? matched.fetchedAt : null,
+    confidence: source === "kronan" && !isEstimated ? "high" : "medium",
     sourceLabel: source === "kronan" && !isEstimated ? "Verð frá Krónunni" : "Áætlað verð",
     estimated: isEstimated,
     isEstimated,
@@ -2253,7 +2301,8 @@ function normalizeMatchedShoppingItem(matched, original) {
 }
 
 async function hydrateKronanPrices(plan) {
-  if (PRICE_MODE !== "live") {
+  if (!shouldUseLivePricing()) {
+    if (PRICE_MODE === "live") console.warn("Live pricing is disabled in normal user flow");
     useEstimatedPricing(plan);
     return;
   }
@@ -2608,6 +2657,12 @@ function renderHero() {
   traceHomepage("renderHero start");
   setQuizActive(false);
   const hasCurrentPlan = Boolean(state.plan && !state.plan.error);
+  const staticHome = app.querySelector("[data-static-home]");
+  if (staticHome && !hasCurrentPlan) {
+    bindHeroInteractions();
+    traceHomepage("renderHero hydrated static home");
+    return;
+  }
   app.innerHTML = `
     <section class="hero">
       <div class="hero-fruits" aria-hidden="true">
@@ -2661,6 +2716,11 @@ function renderHero() {
       </div>
     </section>
   `;
+  bindHeroInteractions();
+  traceHomepage("renderHero complete");
+}
+
+function bindHeroInteractions() {
   const startBtn = document.getElementById("startBtn");
   if (startBtn) startBtn.onclick = () => { startNewWizard(); };
   const lastPlanBtn = document.getElementById("lastPlanBtn");
@@ -2674,7 +2734,6 @@ function renderHero() {
       howItWorks.scrollIntoView({ behavior: "smooth" });
     };
   }
-  traceHomepage("renderHero complete");
 }
 
 function quizShell(stepLabel, title, bodyHtml, { nextLabel = "Áfram", nextDisabled = false, showBack = true, cardClass = "", bodyClass = "", allowInnerScroll = false } = {}) {
@@ -2752,15 +2811,16 @@ function renderGoalsStep() {
 function renderStoreStep() {
   const body = `
     <p style="color:var(--muted); margin-bottom:18px;">Í fyrstu útgáfu er aðeins Krónan í boði — fleiri verslanir koma síðar.</p>
-    <div class="option-grid">
+    ${state.storeNotice ? `<div class="store-step-notice" role="status">${escapeHtml(state.storeNotice)}</div>` : ""}
+    <div class="option-grid store-grid">
       ${STORES.map((s) => `
-        <div class="option ${state.store === s.id ? "selected" : ""} ${!s.available ? "" : ""}" data-store="${s.id}" style="${s.available ? "" : "opacity:0.5; cursor:not-allowed;"}">
+        <button class="option store-option ${state.store === s.id ? "selected" : ""} ${!s.available ? "is-disabled" : ""}" type="button" data-store="${s.id}" data-store-available="${s.available ? "true" : "false"}" aria-disabled="${s.available ? "false" : "true"}">
           ${s.logo ? `<img class="store-logo" src="${s.logo}" alt="" aria-hidden="true" />` : `<span class="option-icon">${iconImg("cart")}</span>`}
-          <div>
-            <div>${s.name}</div>
-            <div style="font-size:0.75rem; color:var(--muted);">${s.note}</div>
+          <div class="store-option-copy">
+            <div class="store-option-title">${s.name}</div>
+            <div class="store-option-note">${s.note}</div>
           </div>
-        </div>
+        </button>
       `).join("")}
     </div>
   `;
@@ -2770,9 +2830,20 @@ function renderStoreStep() {
 
   document.querySelectorAll("[data-store]").forEach((el) => {
     const storeObj = STORES.find((s) => s.id === el.dataset.store);
-    if (!storeObj.available) return;
     el.onclick = () => {
+      if (!storeObj || !storeObj.available) {
+        state.storeNotice = "Þessi verslun kemur síðar.";
+        renderStoreStep();
+        window.setTimeout(() => {
+          if (state.currentView === "quiz" && state.step === 1 && state.storeNotice) {
+            state.storeNotice = null;
+            renderStoreStep();
+          }
+        }, 2200);
+        return;
+      }
       state.store = storeObj.id;
+      state.storeNotice = null;
       document.querySelectorAll("[data-store]").forEach((o) => o.classList.remove("selected"));
       el.classList.add("selected");
     };
@@ -3102,7 +3173,7 @@ function renderDislikesStep() {
       const plan = generatePlan();
       console.log("[PRICE FLOW] plan generated", plan.shoppingList);
       if (!plan.error) {
-        if (PRICE_MODE === "live") {
+        if (shouldUseLivePricing()) {
           try {
             await withTimeout(hydrateKronanPrices(plan), 9000, "Price hydration timed out");
           } catch (priceError) {
@@ -3355,13 +3426,16 @@ function renderResults() {
   const mealsPerDay = mealSlotsForPlan(plan).length;
   const perMeal = plan.totalPrice / Math.max(1, plan.numDays * mealsPerDay);
   const estimatedCount = plan.shoppingList.filter((item) => item.isEstimated || item.estimated).length;
-  const realKronanCount = plan.shoppingList.filter((item) => item.source === "kronan" && item.isEstimated === false).length;
-  const shoppingSourceNote = (() => {
-    if (state.pricingStatus === "loading") return "Sæki verð frá Krónunni...";
-    if (realKronanCount > 0 && estimatedCount > 0) return "Sum verð eru frá Krónunni, önnur áætluð";
-    if (realKronanCount > 0) return "Verð frá Krónunni";
-    return "Áætlað verð";
-  })();
+  const realKronanCount = plan.shoppingList.filter((item) => item.priceSource === "store" && item.sourceName === "Krónan" && item.isEstimated === false).length;
+  const shoppingSourceNote = state.pricingStatus === "loading"
+    ? "Sæki verð frá Krónunni..."
+    : APP_GLOBAL.MatvalPricing?.getPriceSourceLabel
+      ? APP_GLOBAL.MatvalPricing.getPriceSourceLabel(plan.shoppingList)
+      : realKronanCount > 0 && estimatedCount > 0
+        ? "Sum verð eru frá Krónunni, önnur áætluð"
+        : realKronanCount > 0
+          ? "Verð frá Krónunni"
+          : "Áætlað verð";
   const pricingMessage = state.pricingStatus === "loading"
     ? "Sæki verð frá Krónunni..."
     : state.pricingStatus === "error"
@@ -3375,13 +3449,13 @@ function renderResults() {
   const planTabActive = state.resultTab === "plan";
   const groceryTabActive = state.resultTab === "grocery";
   const shoppingDisplayName = (item) => {
-    if (item.source === "kronan" && item.isEstimated === false) {
-      return item.matchedProductName || item.productName || item.nameFromStore || item.name || "Vara";
+    if (item.priceSource === "store" && item.isEstimated === false) {
+      return item.productNameMatched || item.matchedProductName || item.productName || item.nameFromStore || item.name || "Vara";
     }
     return item.ingredientName || item.name || "Vara";
   };
   const shoppingLineMeta = (item) => {
-    if (item.source === "kronan" && item.isEstimated === false) {
+    if (item.priceSource === "store" && item.isEstimated === false) {
       const packageCount = item.packageCount || 1;
       return `Magn: ×${packageCount}`;
     }
@@ -3389,14 +3463,16 @@ function renderResults() {
     return "Magn: áætlað";
   };
   const shoppingLinePrice = (item) => {
-    if (item.source === "kronan" && item.isEstimated === false) {
+    if (item.priceSource === "store" && item.isEstimated === false) {
       return item.totalPrice;
     }
     return item.estimatedPrice ?? item.totalPrice ?? item.price;
   };
   const shoppingItemBadge = (item) => {
     if (item.isEstimated || item.estimated) return "Áætlað verð";
-    if (item.source !== "kronan") return "Ekki fannst vara";
+    if (item.priceSource === "reference") return "Verðviðmið";
+    if (item.isStale || item.stale) return "Verð gæti hafa breyst";
+    if (item.priceSource !== "store") return "Ekki fannst vara";
     return "";
   };
   const shoppingCategory = (item) => {
@@ -3611,7 +3687,7 @@ function renderResults() {
       state.pricingStatus = "idle";
       state.pricingError = null;
       state.replacementMessage = null;
-      if (PRICE_MODE === "live") hydrateKronanPrices(state.plan);
+      if (shouldUseLivePricing()) hydrateKronanPrices(state.plan);
       else {
         useEstimatedPricing(state.plan);
         renderResults();

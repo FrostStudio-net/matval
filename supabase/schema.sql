@@ -53,3 +53,36 @@ create policy "Users can delete own meal plans"
 on public.meal_plans
 for delete
 using (auth.uid() = user_id);
+
+create table if not exists public.store_price_snapshots (
+  id uuid primary key default gen_random_uuid(),
+  store text,
+  source_name text not null,
+  source_type text not null check (source_type in ('store', 'reference', 'estimated')),
+  product_name text not null,
+  normalized_product_name text not null,
+  barcode text null,
+  external_product_id text null,
+  price numeric not null,
+  unit_price numeric null,
+  size_label text null,
+  category text null,
+  observed_at timestamptz null,
+  fetched_at timestamptz default now(),
+  confidence text not null check (confidence in ('high', 'medium', 'low')),
+  raw_data jsonb null
+);
+
+create table if not exists public.price_import_runs (
+  id uuid primary key default gen_random_uuid(),
+  source_name text not null,
+  source_type text not null check (source_type in ('store', 'reference', 'estimated')),
+  started_at timestamptz default now(),
+  finished_at timestamptz null,
+  status text,
+  items_imported integer default 0,
+  error_message text null
+);
+
+alter table public.store_price_snapshots enable row level security;
+alter table public.price_import_runs enable row level security;

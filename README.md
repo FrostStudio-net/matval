@@ -1,15 +1,21 @@
 # Matval
 
-Matval is an Icelandic meal-planning web app. It generates a weekly meal plan, builds a shopping list, and uses a backend Krónan API layer to fetch real product prices when available.
+Matval is an Icelandic meal-planning web app. It generates a weekly meal plan, builds a shopping list, and shows safe estimated grocery prices by default.
 
 The Krónan access token must only live on the backend. Never put `KRONAN_API_TOKEN` in frontend code.
 
 ## Project Structure
 
 - `index.html` - main static frontend and CSS
-- `app.js` - frontend app state, quiz, meal plan UI, saved plans, and Krónan client calls
+- `app.js` - frontend app state, quiz, meal plan UI, and saved plans
 - `data.js` - recipes, ingredients, local fallback prices, and recipe metadata
 - `server.js` - local Node server, static file serving, and Krónan API proxy/matching logic
+- `pricingConfig.js` - pricing mode config (`estimated`, `cached`, `live`)
+- `priceShoppingList.js` - price source facade for shopping-list pricing
+- `estimatedPrices.js` - Matval fallback estimated price source
+- `cachedPriceSource.js` - future cached Supabase price source
+- `referencePriceSource.js` - future reference/observed price source
+- `kronanPriceSource.js` - debug/admin live pricing guard
 - `api/kronan-match-products.js` - Vercel serverless product matching endpoint
 - `api/kronan-debug.js` - Vercel serverless debug endpoint
 - `kronan-product-mapping.js` - ingredient-to-product matching rules
@@ -80,6 +86,25 @@ The frontend calls relative endpoints such as `/api/kronan-match-products`. The 
 ```text
 Authorization: AccessToken <token>
 ```
+
+Normal development flow does not call Krónan live. Live Krónan calls are reserved for `/debug/kronan` and future admin/scheduled import jobs.
+
+## Pricing Modes
+
+Matval uses `PRICE_MODE = "estimated"` by default in `pricingConfig.js`.
+
+- `estimated` - use Matval fallback estimated prices only.
+- `cached` - future mode for cached Supabase price snapshots, falling back to reference and estimated prices.
+- `live` - debug/admin only. Never use live store APIs in normal user plan generation.
+
+Normal quiz, result rendering, saved plans, tab switching, and price refreshes must not call live Krónan. Production should import store/reference prices into Supabase with controlled admin or scheduled jobs, then serve cached snapshots to users.
+
+Price labels:
+
+- `Verð frá Krónunni` only for approved Krónan-specific cached/live data.
+- `Áætlað verð · verðviðmið` for reference sources such as Neytandinn, ASÍ, or Nappið if usage is technically and legally acceptable.
+- `Áætlað verð` for Matval fallback estimates.
+- `Verð gæti hafa breyst` for stale cached/reference data.
 
 ## Vercel Deployment
 

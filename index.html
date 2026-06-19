@@ -169,7 +169,7 @@
     --fruit-opacity:0.23;
     --fruit-rotate:-3deg;
     --fruit-duration:5.6s;
-    --fruit-delay:-0.4s;
+    --fruit-delay:0s;
     left:-118px;
     top:9%;
   }
@@ -179,7 +179,7 @@
     --fruit-opacity:0.22;
     --fruit-rotate:2deg;
     --fruit-duration:6s;
-    --fruit-delay:-1.1s;
+    --fruit-delay:0.7s;
     right:-82px;
     top:7%;
   }
@@ -189,7 +189,7 @@
     --fruit-opacity:0.21;
     --fruit-rotate:-1deg;
     --fruit-duration:5.4s;
-    --fruit-delay:-1.7s;
+    --fruit-delay:1.3s;
     left:61%;
     bottom:-142px;
   }
@@ -199,16 +199,16 @@
     --fruit-opacity:0.2;
     --fruit-rotate:4deg;
     --fruit-duration:6.2s;
-    --fruit-delay:-0.8s;
+    --fruit-delay:1.8s;
     right:34px;
     bottom:48px;
   }
   @keyframes fruitFloat{
     0%, 100%{
-      transform:translate3d(0, -4px, 0) rotate(calc(var(--fruit-rotate, 0deg) - 0.8deg));
+      transform:translate3d(0, 0, 0) rotate(var(--fruit-rotate, 0deg));
     }
     50%{
-      transform:translate3d(0, 6px, 0) rotate(calc(var(--fruit-rotate, 0deg) + 1deg));
+      transform:translate3d(0, 8px, 0) rotate(calc(var(--fruit-rotate, 0deg) + 1.2deg));
     }
   }
   .hero .eyebrow{
@@ -348,6 +348,7 @@
     transition: border-color .15s, background .15s, transform .1s;
     display:flex; align-items:center; gap:10px;
     min-width:0;
+    text-align:left;
   }
   .option.selected{ border-color: var(--moss); background: rgba(63,93,69,0.08); color:var(--moss-dark); font-weight:600; }
   .ui-icon{
@@ -417,6 +418,53 @@
     height:28px;
     object-fit:contain;
     flex-shrink:0;
+  }
+  .store-grid{
+    grid-template-columns:repeat(auto-fill, minmax(170px, 1fr));
+  }
+  .store-option{
+    width:100%;
+    min-height:72px;
+    text-align:left;
+  }
+  .store-option-copy{
+    min-width:0;
+    display:grid;
+    gap:2px;
+  }
+  .store-option-title{
+    font-weight:700;
+    color:inherit;
+  }
+  .store-option-note{
+    font-size:0.75rem;
+    color:var(--muted);
+    font-weight:600;
+  }
+  .store-option.is-disabled{
+    opacity:0.58;
+    cursor:not-allowed;
+    background:rgba(255,253,247,0.52);
+    color:var(--muted);
+  }
+  .store-option.is-disabled .store-logo,
+  .store-option.is-disabled .option-icon{
+    filter:grayscale(1);
+    opacity:0.62;
+  }
+  .store-option.is-disabled .store-option-note{
+    color:var(--muted);
+  }
+  .store-step-notice{
+    margin:0 0 12px;
+    padding:10px 12px;
+    border:1px solid rgba(63,93,69,0.16);
+    border-radius:10px;
+    background:rgba(63,93,69,0.08);
+    color:var(--moss-dark);
+    font-family:var(--font-body);
+    font-size:0.88rem;
+    font-weight:700;
   }
   .scope-controls{ display:grid; gap:16px; }
   .scope-presets{ display:flex; gap:8px; flex-wrap:wrap; }
@@ -1154,6 +1202,19 @@
     .hero p.lead{ font-size:1rem; }
     .hero-grid{ gap:28px; }
     .receipt{ transform:none; padding:22px 18px; font-size:0.82rem; }
+    .store-grid{ grid-template-columns:repeat(2, minmax(0, 1fr)); }
+    .store-option{
+      min-height:60px;
+      padding:10px 11px;
+      gap:8px;
+    }
+    .store-option-title{ font-size:0.9rem; }
+    .store-option-note{ font-size:0.7rem; }
+    .store-option .store-logo,
+    .store-option .option-icon{
+      width:24px;
+      height:24px;
+    }
     section{ padding: 30px 0; }
     .quiz-section{
       min-height:calc(100svh - 78px);
@@ -1865,6 +1926,12 @@
 
 <script src="/data.js"></script>
 <script src="/kronan-product-mapping.js"></script>
+<script src="/pricingConfig.js"></script>
+<script src="/estimatedPrices.js"></script>
+<script src="/cachedPriceSource.js"></script>
+<script src="/referencePriceSource.js"></script>
+<script src="/kronanPriceSource.js"></script>
+<script src="/priceShoppingList.js"></script>
 <script src="/public/js/supabaseConfig.js"></script>
 <script type="module" src="/public/js/auth.js"></script>
 <script type="module" src="/public/js/cloudPlans.js"></script>

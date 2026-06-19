@@ -9,6 +9,10 @@ loadDotenv();
 const PORT = Number(process.env.PORT || 8000);
 const HOST = process.env.HOST || "127.0.0.1";
 const IS_PRODUCTION = process.env.NODE_ENV === "production";
+const KRONAN_DEBUG_CACHE_MS = 60_000;
+const KRONAN_DEBUG_429_COOLDOWN_MS = 10 * 60_000;
+let kronanDebugCache = null;
+let kronanDebugBlockedUntil = 0;
 const KRONAN_API_TOKEN = process.env.KRONAN_API_TOKEN?.trim() || "";
 const KRONAN_API_BASE_URL = (process.env.KRONAN_API_BASE_URL?.trim() || "https://api.kronan.is").replace(/\/+$/, "");
 const PUBLIC_DIR = __dirname;
@@ -288,6 +292,23 @@ async function handleKronanDebug(req, res) {
   }
   if (!requireToken(res)) return;
 
+  const now = Date.now();
+  if (kronanDebugBlockedUntil > now) {
+    return sendJson(res, 429, {
+      error: "Krónan debug live calls are temporarily paused after HTTP 429.",
+      retryAfterSeconds: Math.ceil((kronanDebugBlockedUntil - now) / 1000),
+      cached: kronanDebugCache ? kronanDebugCache.payload : null,
+    });
+  }
+
+  if (kronanDebugCache && now - kronanDebugCache.timestamp < KRONAN_DEBUG_CACHE_MS) {
+    return sendJson(res, 200, {
+      ...kronanDebugCache.payload,
+      cached: true,
+      cacheAgeSeconds: Math.ceil((now - kronanDebugCache.timestamp) / 1000),
+    });
+  }
+
   const results = await Promise.all([
     rawKronanRequest("GET /api/v1/me/", "/api/v1/me/"),
     rawKronanRequest("GET /api/v1/categories/", "/api/v1/categories/"),
@@ -305,7 +326,13 @@ async function handleKronanDebug(req, res) {
     console.warn("[Krónan auth]", authDiagnosis);
   }
 
-  sendJson(res, 200, {
+  const has429 = results.some((result) => Number(result.status) === 429);
+  if (has429) {
+    kronanDebugBlockedUntil = Date.now() + KRONAN_DEBUG_429_COOLDOWN_MS;
+    console.warn("[Krónan debug] HTTP 429 received; pausing live debug calls temporarily.");
+  }
+
+  const payload = {
     baseUrl: KRONAN_API_BASE_URL,
     auth: {
       hasToken: Boolean(KRONAN_API_TOKEN),
@@ -317,7 +344,11 @@ async function handleKronanDebug(req, res) {
     authDiagnosis,
     generatedAt: new Date().toISOString(),
     results,
-  });
+    cached: false,
+  };
+  kronanDebugCache = { timestamp: Date.now(), payload };
+
+  sendJson(res, has429 ? 429 : 200, payload);
 }
 
 function readRequestBody(req) {
@@ -838,6 +869,16 @@ async function matchShoppingListItem(item, options = {}) {
       unitPrice: Number(item.unitPrice || item.mockPrice || item.price || 0),
       totalPrice: Number(item.mockPrice || item.price || 0),
       image: null,
+      priceSource: "estimated",
+      source: "estimated",
+      sourceName: "Matval estimate",
+      storeName: null,
+      productNameMatched: null,
+      productId: null,
+      barcode: null,
+      observedAt: null,
+      fetchedAt: null,
+      confidence: "low",
       sourceLabel: "Áætlað verð",
       isEstimated: true,
     };
@@ -861,6 +902,16 @@ async function matchShoppingListItem(item, options = {}) {
     unitPrice,
     totalPrice: unitPrice * packageCount,
     image: chosen.thumbnail,
+    priceSource: "store",
+    source: "kronan",
+    sourceName: "Krónan",
+    storeName: "Krónan",
+    productNameMatched: chosen.name,
+    productId: chosen.sku,
+    barcode: chosen.barcode || null,
+    observedAt: null,
+    fetchedAt: new Date().toISOString(),
+    confidence: "high",
     sourceLabel: "Verð frá Krónunni",
     isEstimated: false,
   };
@@ -928,6 +979,15 @@ async function matchProductItem(item, options = {}) {
       packageCount: null,
       totalPrice: Number(item.estimatedPrice || item.mockPrice || item.price || 0),
       source: "estimated",
+      priceSource: "estimated",
+      sourceName: "Matval estimate",
+      storeName: null,
+      productNameMatched: null,
+      productId: null,
+      barcode: null,
+      observedAt: null,
+      fetchedAt: null,
+      confidence: "low",
       sourceLabel: "Áætlað verð",
       isEstimated: true,
     };
@@ -947,6 +1007,15 @@ async function matchProductItem(item, options = {}) {
     packageCount,
     totalPrice: unitPrice * packageCount,
     source: "kronan",
+    priceSource: "store",
+    sourceName: "Krónan",
+    storeName: "Krónan",
+    productNameMatched: chosen.name,
+    productId: chosen.sku,
+    barcode: chosen.barcode || null,
+    observedAt: null,
+    fetchedAt: new Date().toISOString(),
+    confidence: "high",
     sourceLabel: "Verð frá Krónunni",
     isEstimated: false,
   };
