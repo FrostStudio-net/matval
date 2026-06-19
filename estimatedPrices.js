@@ -1,4 +1,16 @@
 (function estimatedPricesModule(global) {
+  const STORE_NAMES = {
+    kronan: "Krónan",
+    bonus: "Bónus",
+    netto: "Nettó",
+    pris: "Prís",
+    hagkaup: "Hagkaup",
+  };
+
+  function storeDisplayName(store) {
+    return STORE_NAMES[store] || store || null;
+  }
+
   function numberOrZero(value) {
     const number = Number(value);
     return Number.isFinite(number) ? number : 0;
@@ -31,9 +43,10 @@
       priceSource: "estimated",
       source: "estimated",
       sourceName: "Matval estimate",
-      storeName: selectedStore || null,
+      storeName: storeDisplayName(selectedStore),
       sourceLabel: "Áætlað verð",
       confidence: item.confidence || "medium",
+      fallbackReason: item.fallbackReason || "No reference/store price source was used in estimated mode",
       estimated: true,
       isEstimated: true,
       kronanProduct: null,

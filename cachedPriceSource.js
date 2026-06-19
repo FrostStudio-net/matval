@@ -4,6 +4,9 @@
     // 1. Query Supabase store_price_snapshots for selected store/product matches.
     // 2. Fall back to reference sources.
     // 3. Fall back to Matval estimates.
+    const reference = global.MatvalReferencePriceSource?.priceFromReferenceSources;
+    if (reference) return reference(shoppingList, selectedStore);
+
     const estimated = global.MatvalEstimatedPrices?.applyEstimatedPrices;
     if (!estimated) throw new Error("Estimated pricing module is not loaded");
     return estimated(shoppingList, selectedStore);

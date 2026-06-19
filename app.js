@@ -2193,7 +2193,7 @@ function shouldUseLivePricing() {
 function useEstimatedPricing(plan) {
   if (!plan || !Array.isArray(plan.shoppingList)) return;
   const pricing = APP_GLOBAL.MatvalPricing?.priceShoppingListSync
-    ? APP_GLOBAL.MatvalPricing.priceShoppingListSync(plan.shoppingList, storeDisplayName())
+    ? APP_GLOBAL.MatvalPricing.priceShoppingListSync(plan.shoppingList, state.store)
     : {
         items: plan.shoppingList.map((item) => ({
           ...item,
@@ -3470,6 +3470,38 @@ function renderResults() {
     if (item.priceSource !== "store") return "Ekki fannst vara";
     return "";
   };
+  const sourceDateLabel = (value) => {
+    if (!value) return "";
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return "";
+    return date.toLocaleDateString("is-IS", { day: "2-digit", month: "2-digit", year: "numeric" });
+  };
+  const shoppingSourceMeta = (item) => {
+    if (item.priceSource === "reference") {
+      return [
+        "Verðviðmið",
+        item.sourceName,
+        item.storeName,
+        sourceDateLabel(item.observedAt),
+      ].filter(Boolean).join(" · ");
+    }
+    if (item.priceSource === "store") {
+      return [
+        `Verð frá ${item.storeName || item.sourceName || "verslun"}`,
+        sourceDateLabel(item.fetchedAt || item.observedAt),
+      ].filter(Boolean).join(" · ");
+    }
+    return "Áætlað verð";
+  };
+  const shoppingDebugMeta = (item) => [
+    `selectedStore=${selectedStoreName}`,
+    `matchedProductName=${item.productNameMatched || item.matchedProductName || "null"}`,
+    `sourceName=${item.sourceName || "null"}`,
+    `priceSource=${item.priceSource || "unknown"}`,
+    `confidence=${item.confidence || "unknown"}`,
+    `observedAt=${item.observedAt || "null"}`,
+    item.fallbackReason ? `fallback=${item.fallbackReason}` : null,
+  ].filter(Boolean).join(" · ");
   const shoppingCategory = (item) => {
     const key = item.key || "";
     const productName = normalizeFoodText(`${item.ingredientName || ""} ${item.matchedProductName || ""}`);
@@ -3523,6 +3555,8 @@ function renderResults() {
             <span class="shopping-item-main">
               <span class="shopping-item-name">${escapeHtml(shoppingDisplayName(item))}</span>
               <span class="shopping-item-meta">${escapeHtml(shoppingLineMeta(item))}${badge ? ` · <span class="shopping-badge">${escapeHtml(badge)}</span>` : ""}</span>
+              <span class="shopping-item-source">${escapeHtml(shoppingSourceMeta(item))}</span>
+              <span class="shopping-item-debug">${escapeHtml(shoppingDebugMeta(item))}</span>
             </span>
             <span class="shopping-item-price mono">${formatKr(shoppingLinePrice(item))}</span>
           </label>

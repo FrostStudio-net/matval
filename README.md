@@ -94,6 +94,7 @@ Normal development flow does not call Krónan live. Live Krónan calls are reser
 Matval uses `PRICE_MODE = "estimated"` by default in `pricingConfig.js`.
 
 - `estimated` - use Matval fallback estimated prices only.
+- `reference` - use cached/manual reference prices such as Neytandinn, ASÍ, or Nappið, falling back to estimated prices.
 - `cached` - future mode for cached Supabase price snapshots, falling back to reference and estimated prices.
 - `live` - debug/admin only. Never use live store APIs in normal user plan generation.
 

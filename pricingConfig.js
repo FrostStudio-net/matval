@@ -3,6 +3,7 @@
     PRICE_MODE: "estimated",
     PRICE_MODES: {
       ESTIMATED: "estimated",
+      REFERENCE: "reference",
       CACHED: "cached",
       LIVE: "live",
     },

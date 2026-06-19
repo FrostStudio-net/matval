@@ -32,6 +32,12 @@
 
   function priceShoppingListSync(shoppingList = [], selectedStore = null) {
     const mode = getPriceMode();
+    if (mode === "reference") {
+      const reference = global.MatvalReferencePriceSource?.priceFromReferenceSourcesSync;
+      if (reference) return reference(shoppingList, selectedStore);
+      return applyEstimatedPrices(shoppingList, selectedStore);
+    }
+
     if (mode !== "estimated") {
       console.warn(`${mode} pricing is async/not enabled in this flow; falling back to estimated prices`);
     }
@@ -49,6 +55,12 @@
       const cached = global.MatvalCachedPriceSource?.priceFromCachedSources;
       if (!cached) return applyEstimatedPrices(shoppingList, selectedStore);
       return cached(shoppingList, selectedStore);
+    }
+
+    if (mode === "reference") {
+      const reference = global.MatvalReferencePriceSource?.priceFromReferenceSources;
+      if (!reference) return applyEstimatedPrices(shoppingList, selectedStore);
+      return reference(shoppingList, selectedStore);
     }
 
     if (mode === "live") {

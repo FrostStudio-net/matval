@@ -1,17 +1,186 @@
 (function referencePriceSourceModule(global) {
-  async function priceFromReferenceSources(shoppingList = [], selectedStore = null) {
-    // Reference sources such as Neytandinn, ASÍ Verðlagseftirlit, or Nappið must
-    // be imported/cached first. Do not call them live for every user.
-    const estimated = global.MatvalEstimatedPrices?.applyEstimatedPrices;
+  const REFERENCE_PRICES = [
+    {
+      storeId: "bonus",
+      storeName: "Bónus",
+      query: "nautahakk",
+      productName: "Ungnautahakk 500 gr",
+      normalizedName: "nautahakk",
+      price: 1689,
+      sizeLabel: "500 gr",
+      unitPrice: 3378,
+      sourceName: "Neytandinn",
+      priceSource: "reference",
+      observedAt: "2026-06-18",
+      confidence: "medium",
+    },
+    {
+      storeId: "bonus",
+      storeName: "Bónus",
+      query: "nautahakk",
+      productName: "SS ungnautahakk 490 gr",
+      normalizedName: "nautahakk",
+      price: 1659,
+      sizeLabel: "490 gr",
+      unitPrice: 3386,
+      sourceName: "ASÍ",
+      priceSource: "reference",
+      observedAt: "2026-06-18",
+      confidence: "medium",
+    },
+  ];
+
+  const ITEM_REFERENCE_KEYWORDS = {
+    ground_beef: ["hakk", "nautahakk", "ungnautahakk", "nautakjot", "nautakjöt"],
+  };
+
+  const CONFIDENCE_SCORE = { high: 3, medium: 2, low: 1 };
+
+  function normalizeText(value) {
+    return String(value || "")
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/ð/g, "d")
+      .replace(/þ/g, "th")
+      .replace(/[^a-z0-9æöüø\s]/gi, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+  }
+
+  function itemKeywords(item) {
+    const explicit = ITEM_REFERENCE_KEYWORDS[item.key] || [];
+    return [...new Set([
+      ...explicit,
+      item.key,
+      item.name,
+      item.ingredientName,
+    ].map(normalizeText).filter(Boolean))];
+  }
+
+  function parsePackageQuantityKg(sizeLabel) {
+    const text = normalizeText(sizeLabel);
+    const match = text.match(/(\d+(?:[.,]\d+)?)\s*(kg|kilo|gr|g)\b/);
+    if (!match) return null;
+    const amount = Number(match[1].replace(",", "."));
+    if (!Number.isFinite(amount) || amount <= 0) return null;
+    return match[2] === "kg" || match[2] === "kilo" ? amount : amount / 1000;
+  }
+
+  function packageCountForItem(item, reference) {
+    if (item.unit !== "kg") return 1;
+    const packageKg = parsePackageQuantityKg(reference.sizeLabel);
+    const neededKg = Number(item.amount || item.quantity || 0);
+    if (!packageKg || !neededKg || neededKg <= 0) return 1;
+    return Math.max(1, Math.ceil(neededKg / packageKg));
+  }
+
+  function referenceScore(item, selectedStore, reference) {
+    const keywords = itemKeywords(item);
+    const searchable = normalizeText([
+      reference.query,
+      reference.productName,
+      reference.normalizedName,
+    ].join(" "));
+    const selectedStoreScore = reference.storeId === selectedStore ? 500 : -100;
+    const exactScore = keywords.some((keyword) => keyword && normalizeText(reference.normalizedName) === keyword) ? 90 : 0;
+    const containsScore = keywords.reduce((score, keyword) => {
+      if (!keyword) return score;
+      if (searchable.includes(keyword)) return Math.max(score, keyword.length > 5 ? 70 : 45);
+      return score;
+    }, 0);
+    const observedScore = reference.observedAt ? Date.parse(reference.observedAt) / 8.64e7 / 10000 : 0;
+    const confidenceScore = (CONFIDENCE_SCORE[reference.confidence] || 0) * 12;
+    const priceTieBreaker = -Number(reference.price || 0) / 10000;
+    return selectedStoreScore + exactScore + containsScore + confidenceScore + observedScore + priceTieBreaker;
+  }
+
+  function findReferenceMatch(item, selectedStore) {
+    const candidates = REFERENCE_PRICES
+      .map((reference) => ({
+        reference,
+        score: referenceScore(item, selectedStore, reference),
+      }))
+      .filter((candidate) => candidate.reference.storeId === selectedStore && candidate.score > 500)
+      .sort((a, b) => b.score - a.score);
+
+    return candidates[0]?.reference || null;
+  }
+
+  function applyReferencePrice(item, selectedStore, reference) {
+    const packageCount = packageCountForItem(item, reference);
+    const totalPrice = Number(reference.price) * packageCount;
+    return {
+      ...item,
+      price: totalPrice,
+      totalPrice,
+      estimatedPrice: item.mockPrice ?? item.estimatedPrice ?? item.price ?? item.totalPrice ?? 0,
+      unitPrice: Number(reference.price),
+      matchedProductName: reference.productName,
+      productNameMatched: reference.productName,
+      productId: null,
+      barcode: null,
+      sku: null,
+      packageSize: reference.sizeLabel,
+      packageCount,
+      size: reference.sizeLabel,
+      priceSource: "reference",
+      source: "reference",
+      sourceName: reference.sourceName,
+      storeName: reference.storeName,
+      sourceLabel: "Áætlað verð · verðviðmið",
+      observedAt: reference.observedAt,
+      fetchedAt: null,
+      confidence: reference.confidence || "medium",
+      fallbackReason: null,
+      estimated: false,
+      isEstimated: false,
+      kronanProduct: null,
+    };
+  }
+
+  function priceFromReferenceSourcesSync(shoppingList = [], selectedStore = null) {
+    const estimated = global.MatvalEstimatedPrices?.normalizeEstimatedItem;
     if (!estimated) throw new Error("Estimated pricing module is not loaded");
-    return estimated(shoppingList, selectedStore);
+
+    const items = shoppingList.map((item) => {
+      const reference = findReferenceMatch(item, selectedStore);
+      if (reference) return applyReferencePrice(item, selectedStore, reference);
+      return {
+        ...estimated(item, selectedStore),
+        fallbackReason: "No cached/manual reference price match found",
+      };
+    });
+
+    return {
+      items,
+      totalPrice: items.reduce((total, item) => total + Number(item.totalPrice || 0), 0),
+      priceMode: "reference",
+      sourceLabel: global.MatvalPricing?.getPriceSourceLabel
+        ? global.MatvalPricing.getPriceSourceLabel(items)
+        : "Áætlað verð · verðviðmið",
+    };
+  }
+
+  async function priceFromReferenceSources(shoppingList = [], selectedStore = null) {
+    // Reference prices are local cached/manual data in normal flow.
+    // Do not call Neytandinn, ASÍ, or Nappið live for every user.
+    return priceFromReferenceSourcesSync(shoppingList, selectedStore);
   }
 
   global.MatvalReferencePriceSource = {
+    REFERENCE_PRICES,
     priceFromReferenceSources,
+    priceFromReferenceSourcesSync,
+    findReferenceMatch,
   };
 
   if (typeof module !== "undefined") {
-    module.exports = { priceFromReferenceSources };
+    module.exports = {
+      REFERENCE_PRICES,
+      priceFromReferenceSources,
+      priceFromReferenceSourcesSync,
+      findReferenceMatch,
+    };
   }
 })(typeof window !== "undefined" ? window : globalThis);
