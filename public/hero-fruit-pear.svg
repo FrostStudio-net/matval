@@ -1,0 +1,31 @@
+<svg width="300" height="380" viewBox="0 0 300 380" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <radialGradient id="pearWash" cx="38%" cy="28%" r="76%">
+      <stop offset="0" stop-color="#e8dfa2"/>
+      <stop offset="0.38" stop-color="#b9bd69"/>
+      <stop offset="0.74" stop-color="#7f934f"/>
+      <stop offset="1" stop-color="#56693e"/>
+    </radialGradient>
+    <filter id="pearBleed" x="-16%" y="-16%" width="132%" height="132%">
+      <feTurbulence type="fractalNoise" baseFrequency="0.019" numOctaves="3" seed="31" result="texture"/>
+      <feDisplacementMap in="SourceGraphic" in2="texture" scale="7"/>
+      <feGaussianBlur stdDeviation="0.5"/>
+    </filter>
+  </defs>
+  <g opacity="0.84" filter="url(#pearBleed)">
+    <path d="M158 62c33 1 55 28 53 67-1 18 8 34 23 52 30 38 40 94 14 132-28 42-87 59-143 39-58-20-87-66-76-118 6-31 27-52 47-74 15-17 22-31 21-51-1-31 24-48 61-47Z" fill="url(#pearWash)"/>
+    <path d="M90 171c24-49 76-62 115-34 39 29 48 94 26 149-27 40-86 53-133 30-42-20-54-73-8-145Z" fill="#d2cf7b" opacity="0.26"/>
+    <path d="M190 132c34 28 48 86 33 146-12 48-42 71-78 75 52 8 100-24 115-75 14-47 1-95-30-121-15-13-29-20-40-25Z" fill="#4d643d" opacity="0.16"/>
+    <path d="M154 66c7-26 23-43 48-52" fill="none" stroke="#674826" stroke-width="9" stroke-linecap="round" opacity="0.5"/>
+    <path d="M195 21c23-5 44 2 61 21-27 9-48 2-61-21Z" fill="#496a45" opacity="0.46"/>
+  </g>
+  <g opacity="0.34" fill="#5c5830">
+    <circle cx="118" cy="180" r="2.1"/>
+    <circle cx="154" cy="146" r="1.7"/>
+    <circle cx="184" cy="208" r="2"/>
+    <circle cx="132" cy="252" r="1.6"/>
+    <circle cx="202" cy="284" r="1.8"/>
+    <circle cx="98" cy="222" r="1.5"/>
+  </g>
+  <path d="M86 215c45-12 103-8 154 31" fill="none" stroke="#59683b" stroke-width="1.2" stroke-linecap="round" opacity="0.24"/>
+</svg>

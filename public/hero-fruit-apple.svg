@@ -1,0 +1,27 @@
+<svg width="320" height="360" viewBox="0 0 320 360" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <radialGradient id="appleWash" cx="36%" cy="28%" r="78%">
+      <stop offset="0" stop-color="#f4b19b"/>
+      <stop offset="0.38" stop-color="#c95739"/>
+      <stop offset="0.78" stop-color="#8e3a2f"/>
+      <stop offset="1" stop-color="#6f2f2a"/>
+    </radialGradient>
+    <filter id="appleBleed" x="-16%" y="-16%" width="132%" height="132%">
+      <feTurbulence type="fractalNoise" baseFrequency="0.02" numOctaves="3" seed="22" result="texture"/>
+      <feDisplacementMap in="SourceGraphic" in2="texture" scale="6"/>
+      <feGaussianBlur stdDeviation="0.5"/>
+    </filter>
+  </defs>
+  <g opacity="0.84" filter="url(#appleBleed)">
+    <path d="M162 77c18-17 57-22 83 1 43 38 36 126 2 179-27 42-72 69-113 50-35 14-77-6-99-52C7 197 19 111 65 80c31-21 70-14 92 4 2-2 3-4 5-7Z" fill="url(#appleWash)"/>
+    <path d="M76 101c42-27 93-9 107 37 13 43-8 106-54 141-36 1-67-28-80-74-13-47-1-86 27-104Z" fill="#e58a71" opacity="0.28"/>
+    <path d="M205 103c39 28 48 92 24 146-15 33-38 50-65 58 45 9 90-27 111-82 17-45 11-99-19-127-17-16-36-18-51 5Z" fill="#6f2f2a" opacity="0.18"/>
+    <path d="M160 80c-3-31 6-52 27-68" fill="none" stroke="#604226" stroke-width="10" stroke-linecap="round" opacity="0.55"/>
+    <path d="M182 39c28-10 53-4 72 17-30 12-53 9-72-17Z" fill="#496a45" opacity="0.52"/>
+  </g>
+  <g opacity="0.28" fill="none" stroke="#692e28" stroke-linecap="round">
+    <path d="M76 128c46 5 119 43 160 129" stroke-width="1.4"/>
+    <path d="M64 178c56 5 124 29 176 76" stroke-width="1.2"/>
+    <path d="M111 102c-16 44-19 105-7 177" stroke-width="1.1"/>
+  </g>
+</svg>

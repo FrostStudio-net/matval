@@ -2610,6 +2610,12 @@ function renderHero() {
   const hasCurrentPlan = Boolean(state.plan && !state.plan.error);
   app.innerHTML = `
     <section class="hero">
+      <div class="hero-fruits" aria-hidden="true">
+        <span class="hero-fruit lemon"></span>
+        <span class="hero-fruit apple"></span>
+        <span class="hero-fruit pear"></span>
+        <span class="hero-fruit berries"></span>
+      </div>
       <div class="wrap hero-grid">
         <div>
           <div class="eyebrow">Íslenskt matarplan</div>

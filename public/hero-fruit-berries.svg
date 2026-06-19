@@ -1,0 +1,42 @@
+<svg width="260" height="260" viewBox="0 0 260 260" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <radialGradient id="berryWash" cx="35%" cy="30%" r="72%">
+      <stop offset="0" stop-color="#d49aa0"/>
+      <stop offset="0.48" stop-color="#8e4a58"/>
+      <stop offset="1" stop-color="#4d2936"/>
+    </radialGradient>
+    <filter id="berryBleed" x="-18%" y="-18%" width="136%" height="136%">
+      <feTurbulence type="fractalNoise" baseFrequency="0.025" numOctaves="3" seed="42" result="texture"/>
+      <feDisplacementMap in="SourceGraphic" in2="texture" scale="5"/>
+      <feGaussianBlur stdDeviation="0.45"/>
+    </filter>
+  </defs>
+  <g filter="url(#berryBleed)" opacity="0.86">
+    <g fill="url(#berryWash)">
+      <circle cx="92" cy="83" r="28"/>
+      <circle cx="128" cy="70" r="26"/>
+      <circle cx="156" cy="99" r="30"/>
+      <circle cx="108" cy="119" r="31"/>
+      <circle cx="145" cy="136" r="29"/>
+      <circle cx="86" cy="154" r="25"/>
+      <circle cx="129" cy="174" r="31"/>
+    </g>
+    <g fill="#e5b0ae" opacity="0.22">
+      <circle cx="82" cy="73" r="9"/>
+      <circle cx="118" cy="61" r="8"/>
+      <circle cx="148" cy="90" r="10"/>
+      <circle cx="99" cy="108" r="9"/>
+      <circle cx="119" cy="163" r="10"/>
+    </g>
+    <path d="M132 62c8-26 28-39 60-40" fill="none" stroke="#496a45" stroke-width="8" stroke-linecap="round" opacity="0.42"/>
+  </g>
+  <g opacity="0.18" fill="#2f1c25">
+    <circle cx="101" cy="84" r="1.8"/>
+    <circle cx="135" cy="75" r="1.7"/>
+    <circle cx="160" cy="111" r="1.6"/>
+    <circle cx="112" cy="128" r="1.7"/>
+    <circle cx="141" cy="147" r="1.8"/>
+    <circle cx="92" cy="161" r="1.4"/>
+    <circle cx="134" cy="183" r="1.6"/>
+  </g>
+</svg>
