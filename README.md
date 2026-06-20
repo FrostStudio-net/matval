@@ -10,11 +10,12 @@ The Krónan access token must only live on the backend. Never put `KRONAN_API_TO
 - `app.js` - frontend app state, quiz, meal plan UI, and saved plans
 - `data.js` - recipes, ingredients, local fallback prices, and recipe metadata
 - `server.js` - local Node server, static file serving, and Krónan API proxy/matching logic
-- `pricingConfig.js` - pricing mode config (`estimated`, `cached`, `live`)
+- `pricingConfig.js` - pricing mode config (`estimated`, `reference`, `cached`, `live`) and price-debug flag
 - `priceShoppingList.js` - price source facade for shopping-list pricing
 - `estimatedPrices.js` - Matval fallback estimated price source
 - `cachedPriceSource.js` - future cached Supabase price source
-- `referencePriceSource.js` - future reference/observed price source
+- `referencePriceData.js` - local manual reference price snapshots for development/testing
+- `referencePriceSource.js` - reference/observed price matcher
 - `kronanPriceSource.js` - debug/admin live pricing guard
 - `api/kronan-match-products.js` - Vercel serverless product matching endpoint
 - `api/kronan-debug.js` - Vercel serverless debug endpoint
@@ -94,7 +95,7 @@ Normal development flow does not call Krónan live. Live Krónan calls are reser
 Matval uses `PRICE_MODE = "estimated"` by default in `pricingConfig.js`.
 
 - `estimated` - use Matval fallback estimated prices only.
-- `reference` - use cached/manual reference prices such as Neytandinn, ASÍ, or Nappið, falling back to estimated prices.
+- `reference` - use local cached/manual reference prices such as Neytandinn, ASÍ, or Nappið, falling back to estimated prices. This does not call those sources live.
 - `cached` - future mode for cached Supabase price snapshots, falling back to reference and estimated prices.
 - `live` - debug/admin only. Never use live store APIs in normal user plan generation.
 

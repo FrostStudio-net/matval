@@ -7,6 +7,7 @@ const APP_TAGS = APP_GLOBAL.TAGS || {};
 const APP_INGREDIENT_META = APP_GLOBAL.INGREDIENT_META || {};
 const APP_KRONAN_PRODUCT_MAPPING = APP_GLOBAL.KRONAN_PRODUCT_MAPPING || {};
 const PRICE_MODE = APP_GLOBAL.MatvalPricingConfig?.PRICE_MODE || "estimated";
+const SHOW_PRICE_DEBUG = Boolean(APP_GLOBAL.MatvalPricingConfig?.SHOW_PRICE_DEBUG);
 
 const STORES = [
   { id: "kronan", name: "Krónan", available: true, note: "Í boði núna", logo: "public/KRO_Logo_Emblem_2023.png" },
@@ -2810,12 +2811,11 @@ function renderGoalsStep() {
 }
 
 function renderStoreStep() {
-  const selectedStoreName = storeDisplayName();
   const body = `
     <p style="color:var(--muted); margin-bottom:18px;">Veldu verslun til að miða innkaupalistann og áætlað verð við.</p>
     <div class="option-grid store-grid">
       ${STORES.map((s) => `
-        <button class="option store-option ${state.store === s.id ? "selected" : ""}" type="button" data-store="${s.id}">
+        <button class="option store-option ${state.store === s.id ? "selected is-selected" : ""}" type="button" data-store="${s.id}" aria-pressed="${state.store === s.id}">
           ${s.logo ? `<img class="store-logo" src="${s.logo}" alt="" aria-hidden="true" />` : `<span class="option-icon">${iconImg("cart")}</span>`}
           <div class="store-option-copy">
             <div class="store-option-title">${s.name}</div>
@@ -2824,10 +2824,7 @@ function renderStoreStep() {
         </button>
       `).join("")}
     </div>
-    <div class="selected-store-note">
-      <strong>${escapeHtml(selectedStoreName)} · Áætlað verð</strong>
-      <span>Verð eru áætluð viðmiðunarverð og geta breyst.</span>
-    </div>
+    <p class="store-pricing-note">Verð eru áætluð viðmiðunarverð og geta breyst.</p>
   `;
   quizShell("Skref 2 — Verslun", "Hvaða verslun viltu miða við?", body, {
     allowInnerScroll: true,
@@ -2835,11 +2832,17 @@ function renderStoreStep() {
 
   document.querySelectorAll("[data-store]").forEach((el) => {
     const storeObj = STORES.find((s) => s.id === el.dataset.store);
-    el.onclick = () => {
+    el.onclick = (event) => {
       if (!storeObj) return;
       state.store = storeObj.id;
       state.storeNotice = null;
-      renderStoreStep();
+      document.querySelectorAll("[data-store]").forEach((storeEl) => {
+        const selected = storeEl.dataset.store === state.store;
+        storeEl.classList.toggle("selected", selected);
+        storeEl.classList.toggle("is-selected", selected);
+        storeEl.setAttribute("aria-pressed", String(selected));
+      });
+      event.currentTarget.blur();
     };
   });
   document.getElementById("nextBtn").onclick = () => { navigateToStep(2); };
@@ -3463,33 +3466,13 @@ function renderResults() {
     }
     return item.estimatedPrice ?? item.totalPrice ?? item.price;
   };
-  const shoppingItemBadge = (item) => {
-    if (item.isEstimated || item.estimated) return "Áætlað verð";
-    if (item.priceSource === "reference") return "Verðviðmið";
-    if (item.isStale || item.stale) return "Verð gæti hafa breyst";
-    if (item.priceSource !== "store") return "Ekki fannst vara";
-    return "";
-  };
-  const sourceDateLabel = (value) => {
-    if (!value) return "";
-    const date = new Date(value);
-    if (Number.isNaN(date.getTime())) return "";
-    return date.toLocaleDateString("is-IS", { day: "2-digit", month: "2-digit", year: "numeric" });
-  };
   const shoppingSourceMeta = (item) => {
+    if (item.isStale || item.stale) return "Verð gæti hafa breyst";
     if (item.priceSource === "reference") {
-      return [
-        "Verðviðmið",
-        item.sourceName,
-        item.storeName,
-        sourceDateLabel(item.observedAt),
-      ].filter(Boolean).join(" · ");
+      return "Áætlað verð · verðviðmið";
     }
     if (item.priceSource === "store") {
-      return [
-        `Verð frá ${item.storeName || item.sourceName || "verslun"}`,
-        sourceDateLabel(item.fetchedAt || item.observedAt),
-      ].filter(Boolean).join(" · ");
+      return `Verð frá ${item.storeName || item.sourceName || "verslun"}`;
     }
     return "Áætlað verð";
   };
@@ -3547,16 +3530,15 @@ function renderResults() {
     <div class="shopping-group">
       <div class="shopping-group-title">${group.category}</div>
       ${group.items.map((item) => {
-        const badge = shoppingItemBadge(item);
         return `
           ${(() => { console.log("[TRACE]", traceId, "rendering item", item); return ""; })()}
           <label class="shopping-item">
             <input class="shopping-check" type="checkbox" aria-label="${escapeHtml(shoppingDisplayName(item))}" />
             <span class="shopping-item-main">
               <span class="shopping-item-name">${escapeHtml(shoppingDisplayName(item))}</span>
-              <span class="shopping-item-meta">${escapeHtml(shoppingLineMeta(item))}${badge ? ` · <span class="shopping-badge">${escapeHtml(badge)}</span>` : ""}</span>
+              <span class="shopping-item-meta">${escapeHtml(shoppingLineMeta(item))}</span>
               <span class="shopping-item-source">${escapeHtml(shoppingSourceMeta(item))}</span>
-              <span class="shopping-item-debug">${escapeHtml(shoppingDebugMeta(item))}</span>
+              ${SHOW_PRICE_DEBUG ? `<span class="shopping-item-debug">${escapeHtml(shoppingDebugMeta(item))}</span>` : ""}
             </span>
             <span class="shopping-item-price mono">${formatKr(shoppingLinePrice(item))}</span>
           </label>

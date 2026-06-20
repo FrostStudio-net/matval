@@ -1,37 +1,29 @@
 (function referencePriceSourceModule(global) {
-  const REFERENCE_PRICES = [
-    {
-      storeId: "bonus",
-      storeName: "Bónus",
-      query: "nautahakk",
-      productName: "Ungnautahakk 500 gr",
-      normalizedName: "nautahakk",
-      price: 1689,
-      sizeLabel: "500 gr",
-      unitPrice: 3378,
-      sourceName: "Neytandinn",
-      priceSource: "reference",
-      observedAt: "2026-06-18",
-      confidence: "medium",
-    },
-    {
-      storeId: "bonus",
-      storeName: "Bónus",
-      query: "nautahakk",
-      productName: "SS ungnautahakk 490 gr",
-      normalizedName: "nautahakk",
-      price: 1659,
-      sizeLabel: "490 gr",
-      unitPrice: 3386,
-      sourceName: "ASÍ",
-      priceSource: "reference",
-      observedAt: "2026-06-18",
-      confidence: "medium",
-    },
-  ];
+  const loadedReferenceData = (() => {
+    if (global.MatvalReferencePriceData?.REFERENCE_PRICES) {
+      return global.MatvalReferencePriceData.REFERENCE_PRICES;
+    }
+    if (typeof require === "function") {
+      try {
+        return require("./referencePriceData.js").REFERENCE_PRICES || [];
+      } catch (error) {
+        return [];
+      }
+    }
+    return [];
+  })();
+
+  const REFERENCE_PRICES = loadedReferenceData;
 
   const ITEM_REFERENCE_KEYWORDS = {
-    ground_beef: ["hakk", "nautahakk", "ungnautahakk", "nautakjot", "nautakjöt"],
+    ground_beef: ["hakk", "nautahakk", "ungnautahakk", "nautakjot", "nautakjöt", "minced beef"],
+    eggs: ["egg", "eggs", "egg 10 stk"],
+    milk: ["mjolk", "mjólk", "nymjolk", "nýmjólk", "milk"],
+    oats: ["hafrar", "haframjol", "haframjöl", "oats"],
+    rice: ["hrisgrjon", "hrísgrjón", "grjon", "grjón", "rice"],
+    pasta: ["pasta"],
+    chicken_breast: ["kjuklingabringur", "kjúklingabringur", "kjuklingur", "kjúklingur", "chicken breast"],
+    yogurt_skyr: ["skyr", "yogurt", "jogurt"],
   };
 
   const CONFIDENCE_SCORE = { high: 3, medium: 2, low: 1 };

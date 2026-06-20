@@ -1,6 +1,7 @@
 (function pricingConfigModule(global) {
   const config = {
     PRICE_MODE: "estimated",
+    SHOW_PRICE_DEBUG: false,
     PRICE_MODES: {
       ESTIMATED: "estimated",
       REFERENCE: "reference",
