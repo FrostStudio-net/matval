@@ -44,6 +44,7 @@ const ICONS = {
   google: "/public/icons/icons8-google.svg",
   email: "/public/icons/icons8-email-96.png",
   send: "/public/icons/icons8-send-96.png",
+  info: "/public/icons/icons8-info-96.png",
 };
 
 function iconImg(iconKey, alt = "", className = "ui-icon") {
@@ -3476,6 +3477,11 @@ function renderResults() {
     }
     return "Áætlað verð";
   };
+  const shoppingSourceMetaHtml = (item) => {
+    const label = shoppingSourceMeta(item);
+    const needsInfoIcon = label.startsWith("Áætlað");
+    return `${needsInfoIcon ? iconImg("info", "", "ui-icon shopping-source-icon") : ""}<span>${escapeHtml(label)}</span>`;
+  };
   const shoppingDebugMeta = (item) => [
     `selectedStore=${selectedStoreName}`,
     `matchedProductName=${item.productNameMatched || item.matchedProductName || "null"}`,
@@ -3537,7 +3543,7 @@ function renderResults() {
             <span class="shopping-item-main">
               <span class="shopping-item-name">${escapeHtml(shoppingDisplayName(item))}</span>
               <span class="shopping-item-meta">${escapeHtml(shoppingLineMeta(item))}</span>
-              <span class="shopping-item-source">${escapeHtml(shoppingSourceMeta(item))}</span>
+              <span class="shopping-item-source">${shoppingSourceMetaHtml(item)}</span>
               ${SHOW_PRICE_DEBUG ? `<span class="shopping-item-debug">${escapeHtml(shoppingDebugMeta(item))}</span>` : ""}
             </span>
             <span class="shopping-item-price mono">${formatKr(shoppingLinePrice(item))}</span>
