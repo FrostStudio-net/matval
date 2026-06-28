@@ -16,11 +16,16 @@
       if (storeNames.length === 1 && storeNames[0] === "Krónan") return "Sum verð eru frá Krónunni, önnur áætluð";
       return "Sum verð eru frá verslun, önnur áætluð";
     }
+    if (hasStore && hasReference) {
+      if (storeNames.length === 1 && storeNames[0] === "Krónan") return "Sum verð eru frá Krónunni, önnur verðviðmið";
+      return "Sum verð eru frá verslun, önnur verðviðmið";
+    }
     if (hasStore) {
       if (storeNames.length === 1 && storeNames[0] === "Krónan") return "Verð frá Krónunni";
       return "Verð frá verslun";
     }
-    if (hasReference) return "Áætlað verð · verðviðmið";
+    if (hasReference && hasEstimated) return "Áætlað verð · byggt á verðviðmiðum";
+    if (hasReference) return "Áætlað verð · byggt á verðviðmiðum";
     return "Áætlað verð";
   }
 
@@ -33,6 +38,14 @@
   function priceShoppingListSync(shoppingList = [], selectedStore = null) {
     const mode = getPriceMode();
     if (mode === "reference") {
+      const reference = global.MatvalReferencePriceSource?.priceFromReferenceSourcesSync;
+      if (reference) return reference(shoppingList, selectedStore);
+      return applyEstimatedPrices(shoppingList, selectedStore);
+    }
+
+    if (mode === "cached") {
+      const cached = global.MatvalCachedPriceSource?.priceFromCachedSourcesSync;
+      if (cached) return cached(shoppingList, selectedStore);
       const reference = global.MatvalReferencePriceSource?.priceFromReferenceSourcesSync;
       if (reference) return reference(shoppingList, selectedStore);
       return applyEstimatedPrices(shoppingList, selectedStore);

@@ -15,6 +15,7 @@ The Krónan access token must only live on the backend. Never put `KRONAN_API_TO
 - `estimatedPrices.js` - Matval fallback estimated price source
 - `cachedPriceSource.js` - future cached Supabase price source
 - `referencePriceData.js` - local manual reference price snapshots for development/testing
+- `priceMatcher.js` - product/category price matching and fallback ranking
 - `referencePriceSource.js` - reference/observed price matcher
 - `kronanPriceSource.js` - debug/admin live pricing guard
 - `api/kronan-match-products.js` - Vercel serverless product matching endpoint
@@ -92,12 +93,21 @@ Normal development flow does not call Krónan live. Live Krónan calls are reser
 
 ## Pricing Modes
 
-Matval uses `PRICE_MODE = "estimated"` by default in `pricingConfig.js`.
+Matval uses `PRICE_MODE = "reference"` by default in `pricingConfig.js`.
 
-- `estimated` - use Matval fallback estimated prices only.
 - `reference` - use local cached/manual reference prices such as Neytandinn, ASÍ, or Nappið, falling back to estimated prices. This does not call those sources live.
 - `cached` - future mode for cached Supabase price snapshots, falling back to reference and estimated prices.
+- `estimated` - use Matval fallback estimated prices only.
 - `live` - debug/admin only. Never use live store APIs in normal user plan generation.
+
+Reference-mode priority:
+
+1. Selected-store direct cached price.
+2. Selected-store reference price from Neytandinn, ASÍ, or Nappið.
+3. Krónan cached/manual price for the same or similar product.
+4. Same-product reference average from other MVP stores.
+5. Category or package average.
+6. Matval fallback estimate.
 
 Normal quiz, result rendering, saved plans, tab switching, and price refreshes must not call live Krónan. Production should import store/reference prices into Supabase with controlled admin or scheduled jobs, then serve cached snapshots to users.
 

@@ -45,6 +45,8 @@ const ICONS = {
   email: "/public/icons/icons8-email-96.png",
   send: "/public/icons/icons8-send-96.png",
   info: "/public/icons/icons8-info-96.png",
+  share: "/public/icons/icons8-share-96.png",
+  copy: "/public/icons/icons8-copy-96.png",
 };
 
 function iconImg(iconKey, alt = "", className = "ui-icon") {
@@ -1503,6 +1505,133 @@ function updateResultTotalsDom(plan) {
   });
 }
 
+let matvalToastTimer = null;
+
+function showMatvalToast(message, { tone = "success" } = {}) {
+  if (!IS_BROWSER) return;
+  let toast = document.getElementById("matvalToast");
+  if (!toast) {
+    document.body.insertAdjacentHTML("beforeend", `<div id="matvalToast" class="save-toast matval-toast" role="status" aria-live="polite"></div>`);
+    toast = document.getElementById("matvalToast");
+  }
+  const icon = tone === "error" ? iconImg("info", "", "ui-icon save-toast-icon") : iconImg("checkmarkActive", "", "ui-icon save-toast-icon");
+  toast.className = `save-toast matval-toast ${tone === "error" ? "is-error" : ""}`;
+  toast.innerHTML = `${icon}<span>${escapeHtml(message)}</span>`;
+  window.clearTimeout(matvalToastTimer);
+  matvalToastTimer = window.setTimeout(() => {
+    toast?.remove();
+  }, 3600);
+}
+
+function shoppingExportDisplayName(item) {
+  if (item.priceSource === "store" && item.isEstimated === false) {
+    return item.productNameMatched || item.matchedProductName || item.productName || item.nameFromStore || item.name || "Vara";
+  }
+  return item.ingredientName || item.name || item.productNameMatched || "Vara";
+}
+
+function normalizeExportAmountLabel(value) {
+  return String(value || "áætlað")
+    .replace(/\bgr\b/gi, "g")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function shoppingExportAmount(item) {
+  if (item.purchaseLabel) return normalizeExportAmountLabel(item.purchaseLabel);
+  if ((item.priceSource === "store" || item.priceSource === "reference") && item.isEstimated === false) {
+    const packageCount = item.packageCount || 1;
+    const packageSize = item.packageSize || item.size || "vara";
+    return normalizeExportAmountLabel(`${packageCount > 1 ? `${packageCount} × ` : ""}${packageSize}`);
+  }
+  if (item.packageSize) return normalizeExportAmountLabel(item.packageSize);
+  if (item.amount && item.unit) return normalizeExportAmountLabel(`${Number(item.amount).toFixed(item.amount < 1 ? 2 : 0)} ${item.unit}`);
+  return "áætlað";
+}
+
+function shoppingExportCategory(item) {
+  const key = item.key || "";
+  const productName = normalizeFoodText(`${item.ingredientName || ""} ${item.matchedProductName || ""} ${item.productNameMatched || ""}`);
+  if (productName.includes("fros") || ["mixed_veg", "blueberries", "spinach"].includes(key)) return "FROSIÐ";
+  if (["chicken_breast", "eggs", "tuna", "ground_beef", "salmon", "tofu", "lentils", "chickpeas", "black_beans", "kidney_beans", "cottage_cheese", "yogurt_skyr"].includes(key)) return "PRÓTEIN";
+  if (["mixed_veg", "banana", "onion", "garlic", "potatoes", "spinach", "carrots", "cucumber", "tomato", "apples", "blueberries"].includes(key)) return "GRÆNMETI OG ÁVEXTIR";
+  if (["milk", "oatmilk", "butter", "cheese", "coconut_milk"].includes(key)) return "MJÓLKURVÖRUR / VALKOSTIR";
+  if (item.excludeFromTotal || item.sourceLabel === "Athuga heima") return "ATHUGA HEIMA";
+  if (["rice", "oats", "pasta", "tomato_sauce", "bread", "tortilla", "soy_sauce", "peanut_butter", "oil", "noodles", "spices"].includes(key)) return "ÞURRVARA";
+  return "ANNAÐ";
+}
+
+function formatShoppingListForExport(planResult) {
+  const plan = planResult || state.plan;
+  if (!plan || plan.error) return "";
+  const selectedStoreName = storeDisplayName(plan.store || state.store);
+  const categoryOrder = ["PRÓTEIN", "ÞURRVARA", "GRÆNMETI OG ÁVEXTIR", "MJÓLKURVÖRUR / VALKOSTIR", "FROSIÐ", "ATHUGA HEIMA", "ANNAÐ"];
+  const groups = categoryOrder
+    .map((category) => ({
+      category,
+      items: (plan.shoppingList || []).filter((item) => shoppingExportCategory(item) === category),
+    }))
+    .filter((group) => group.items.length);
+
+  const lines = [`Matval innkaupalisti — ${selectedStoreName}`, ""];
+  groups.forEach((group, groupIndex) => {
+    if (groupIndex > 0) lines.push("");
+    lines.push(group.category);
+    group.items.forEach((item) => {
+      lines.push(`☐ ${shoppingExportDisplayName(item)} — ${shoppingExportAmount(item)}`);
+    });
+  });
+  lines.push("");
+  lines.push(`Áætlað verð: ${formatKr(plan.totalPrice)}`);
+  lines.push("Verð eru áætluð viðmiðunarverð og geta breyst.");
+  return lines.join("\n");
+}
+
+async function writeClipboardText(text) {
+  if (navigator.clipboard?.writeText) {
+    await navigator.clipboard.writeText(text);
+    return;
+  }
+  const textarea = document.createElement("textarea");
+  textarea.value = text;
+  textarea.setAttribute("readonly", "");
+  textarea.style.position = "fixed";
+  textarea.style.left = "-9999px";
+  document.body.appendChild(textarea);
+  textarea.select();
+  const success = document.execCommand("copy");
+  textarea.remove();
+  if (!success) throw new Error("Clipboard copy failed");
+}
+
+async function copyShoppingList(planResult = state.plan) {
+  try {
+    await writeClipboardText(formatShoppingListForExport(planResult));
+    showMatvalToast("Innkaupalistinn var afritaður");
+    return true;
+  } catch (error) {
+    console.error("[Shopping list] copy failed:", error);
+    showMatvalToast("Ekki tókst að afrita listann.", { tone: "error" });
+    return false;
+  }
+}
+
+async function shareShoppingList(planResult = state.plan) {
+  const text = formatShoppingListForExport(planResult);
+  if (navigator.share) {
+    try {
+      await navigator.share({
+        title: "Matval innkaupalisti",
+        text,
+      });
+      return true;
+    } catch (error) {
+      console.warn("[Shopping list] share failed, falling back to copy:", error);
+    }
+  }
+  return copyShoppingList(planResult);
+}
+
 function replaceMeal(dayIndex, slot) {
   const plan = state.plan;
   if (!plan || plan.error || !plan.days[dayIndex] || !plan.days[dayIndex][slot]) return;
@@ -2181,6 +2310,15 @@ function generatePlan(options = {}) {
     return planError({ people, selectedDays, selectedMeals });
   }
 
+  if (!shouldUseLivePricing()) {
+    return optimizePlanForBudget(plan, {
+      goals,
+      pantry,
+      people,
+      store: state.store,
+    }, budget);
+  }
+
   return plan;
 }
 
@@ -2192,10 +2330,10 @@ function shouldUseLivePricing() {
   return PRICE_MODE === "live" && Boolean(APP_GLOBAL.MatvalKronanPriceSource?.isDebugOrAdminPage?.());
 }
 
-function useEstimatedPricing(plan) {
+function pricePlanWithCurrentEngine(plan, selectedStore = state.store) {
   if (!plan || !Array.isArray(plan.shoppingList)) return;
   const pricing = APP_GLOBAL.MatvalPricing?.priceShoppingListSync
-    ? APP_GLOBAL.MatvalPricing.priceShoppingListSync(plan.shoppingList, state.store)
+    ? APP_GLOBAL.MatvalPricing.priceShoppingListSync(plan.shoppingList, selectedStore)
     : {
         items: plan.shoppingList.map((item) => ({
           ...item,
@@ -2222,11 +2360,274 @@ function useEstimatedPricing(plan) {
           isEstimated: true,
           kronanProduct: null,
         })),
+        priceMode: PRICE_MODE,
+        sourceLabel: "Áætlað verð",
       };
   plan.shoppingList = pricing.items;
   recalculatePlanTotal(plan);
+  plan.priceMode = pricing.priceMode || PRICE_MODE;
+  plan.priceSourceLabel = pricing.sourceLabel || APP_GLOBAL.MatvalPricing?.getPriceSourceLabel?.(plan.shoppingList) || "Áætlað verð";
+  plan.nutritionTotals = nutritionTotals(plan.days);
+  return pricing;
+}
+
+function rebuildAndPricePlan(plan, options = {}) {
+  if (!plan || plan.error) return plan;
+  const pantry = options.pantry || state.pantry;
+  const selectedStore = options.store || state.store;
+  const { shoppingList } = estimateShoppingList(plan.days, plan.people, pantry);
+  plan.shoppingList = shoppingList;
+  pricePlanWithCurrentEngine(plan, selectedStore);
+  return plan;
+}
+
+function useEstimatedPricing(plan) {
+  if (!plan || !Array.isArray(plan.shoppingList)) return;
+  pricePlanWithCurrentEngine(plan, state.store);
   state.pricingStatus = "estimated";
   state.pricingError = null;
+}
+
+function clonePlanForBudget(plan) {
+  return {
+    ...plan,
+    days: (plan.days || []).map((day) => Object.fromEntries(
+      Object.entries(day).map(([slot, meal]) => [slot, meal ? { ...meal } : meal])
+    )),
+    shoppingList: (plan.shoppingList || []).map((item) => ({ ...item })),
+    replacedRecipeIds: [...(plan.replacedRecipeIds || [])],
+    replacementHistoryBySlot: Object.fromEntries(
+      Object.entries(plan.replacementHistoryBySlot || {}).map(([key, value]) => [key, Array.isArray(value) ? [...value] : value])
+    ),
+    budgetOptimization: plan.budgetOptimization ? { ...plan.budgetOptimization } : null,
+  };
+}
+
+function ingredientKeysForRecipe(recipe) {
+  return new Set((recipe?.ingredients || []).map((ingredient) => ingredient.key).filter(Boolean));
+}
+
+function ingredientKeysInPlan(plan, excludedDayIndex = null, excludedSlot = null) {
+  const keys = new Set();
+  (plan.days || []).forEach((day, dayIndex) => {
+    Object.entries(day).forEach(([slot, meal]) => {
+      if (dayIndex === excludedDayIndex && slot === excludedSlot) return;
+      (meal?.recipe?.ingredients || []).forEach((ingredient) => keys.add(ingredient.key));
+    });
+  });
+  return keys;
+}
+
+function mealHasDependentLeftover(plan, dayIndex, slot) {
+  if (slot !== "kvöldmatur") return false;
+  const recipeId = plan.days?.[dayIndex]?.[slot]?.recipe?.id;
+  const nextLunch = plan.days?.[dayIndex + 1]?.hádegismatur;
+  return Boolean(recipeId && nextLunch?.fromDinner && nextLunch.sourceRecipeId === recipeId);
+}
+
+function budgetReplacementAllowed(plan, dayIndex, slot) {
+  const meal = plan.days?.[dayIndex]?.[slot];
+  if (!meal?.recipe) return false;
+  if (meal.leftover || meal.fromDinner || meal.recipe.usesLeftovers) return false;
+  if (mealHasDependentLeftover(plan, dayIndex, slot)) return false;
+  return true;
+}
+
+function expensiveBudgetTargets(plan) {
+  const targets = [];
+  const seen = new Set();
+  const expensiveKeys = (plan.shoppingList || [])
+    .filter((item) => !item.excludeFromTotal && item.sourceLabel !== "Athuga heima")
+    .sort((a, b) => Number(b.totalPrice || b.price || 0) - Number(a.totalPrice || a.price || 0))
+    .slice(0, 8)
+    .map((item) => ({
+      key: item.key,
+      price: Number(item.totalPrice || item.price || 0),
+    }));
+
+  const pushTarget = (dayIndex, slot, priority) => {
+    if (!budgetReplacementAllowed(plan, dayIndex, slot)) return;
+    const key = `${dayIndex}:${slot}`;
+    if (seen.has(key)) return;
+    seen.add(key);
+    targets.push({ dayIndex, slot, priority });
+  };
+
+  expensiveKeys.forEach((item) => {
+    (plan.days || []).forEach((day, dayIndex) => {
+      Object.entries(day).forEach(([slot, meal]) => {
+        if ((meal?.recipe?.ingredients || []).some((ingredient) => ingredient.key === item.key)) {
+          pushTarget(dayIndex, slot, item.price);
+        }
+      });
+    });
+  });
+
+  (plan.days || []).forEach((day, dayIndex) => {
+    Object.keys(day).forEach((slot) => pushTarget(dayIndex, slot, 0));
+  });
+
+  return targets.sort((a, b) => b.priority - a.priority);
+}
+
+function applyBudgetReplacement(plan, dayIndex, slot, recipe) {
+  plan.days[dayIndex][slot] = {
+    recipe,
+    leftover: false,
+    fromDinner: false,
+    sourceRecipeId: null,
+  };
+}
+
+function budgetReplacementScore(candidate, currentRecipe, slot, plan, dayIndex, prefs) {
+  const existingKeys = ingredientKeysInPlan(plan, dayIndex, slot);
+  const candidateKeys = ingredientKeysForRecipe(candidate);
+  let overlap = 0;
+  let newKeys = 0;
+  candidateKeys.forEach((key) => {
+    if (existingKeys.has(key)) overlap += 1;
+    else newKeys += 1;
+  });
+
+  let score = replacementScore(candidate, currentRecipe, slot, prefs.goals, prefs.pantry, prefs.people);
+  score -= recipePrice(candidate, prefs.people) / 45;
+  score += overlap * 18;
+  score -= newKeys * 22;
+  if ((candidate.tags || []).includes("cheap")) score += 28;
+  if (candidate.primaryProtein && candidate.primaryProtein === currentRecipe.primaryProtein) score += 8;
+  return score;
+}
+
+function bestBudgetReplacementTrial(plan, prefs, selectedBudget) {
+  const currentTotal = Number(plan.totalPrice || 0);
+  const structure = plan.weeklyStructure || buildWeeklyStructure(prefs.goals, plan.numDays, plan.selectedMeals);
+  const recipeCounts = countRecipesInPlan(plan);
+  const targets = expensiveBudgetTargets(plan).slice(0, 10);
+  const trials = [];
+
+  targets.forEach(({ dayIndex, slot, priority }) => {
+    const meal = plan.days?.[dayIndex]?.[slot];
+    const currentRecipe = meal?.recipe;
+    if (!currentRecipe) return;
+
+    const candidates = replacementPoolForSlot(slot, plan, dayIndex)
+      .filter((recipe) => recipe.id !== currentRecipe.id)
+      .filter((recipe) => leftoverRecipeAllowedForGoals(recipe, prefs.goals))
+      .filter((recipe) => (recipeCounts[recipe.id] || 0) < 2)
+      .map((recipe) => ({
+        recipe,
+        score: budgetReplacementScore(recipe, currentRecipe, slot, plan, dayIndex, prefs),
+      }))
+      .sort((a, b) => b.score - a.score)
+      .slice(0, 10);
+
+    candidates.forEach(({ recipe, score }) => {
+      const trial = clonePlanForBudget(plan);
+      applyBudgetReplacement(trial, dayIndex, slot, recipe);
+      rebuildAndPricePlan(trial, { pantry: prefs.pantry, store: prefs.store });
+      const validation = validatePlan(trial, prefs.goals);
+      if (!validation.valid) return;
+
+      const totalPrice = Number(trial.totalPrice || 0);
+      if (totalPrice >= currentTotal - 1) return;
+
+      const qualityScore = scoreWholeWeek(trial.days, structure, prefs.goals, prefs.people, prefs.pantry, selectedBudget);
+      trials.push({
+        plan: trial,
+        totalPrice,
+        qualityScore,
+        replacementScore: score,
+        priority,
+        recipeId: recipe.id,
+        dayIndex,
+        slot,
+      });
+    });
+  });
+
+  return trials
+    .sort((a, b) => {
+      if (a.totalPrice !== b.totalPrice) return a.totalPrice - b.totalPrice;
+      if (b.priority !== a.priority) return b.priority - a.priority;
+      if (b.qualityScore !== a.qualityScore) return b.qualityScore - a.qualityScore;
+      return b.replacementScore - a.replacementScore;
+    })[0] || null;
+}
+
+function optimizePlanForBudget(plan, userPrefs = {}, selectedBudget = state.budget) {
+  if (!plan || plan.error || !selectedBudget || selectedBudget <= 0) return plan;
+
+  const prefs = {
+    goals: userPrefs.goals || state.goals,
+    pantry: userPrefs.pantry || state.pantry,
+    people: userPrefs.people || plan.people || state.people,
+    store: userPrefs.store || state.store,
+  };
+  const hardTarget = Number(selectedBudget);
+  const softTarget = Math.floor(hardTarget * 0.95);
+  const maxAttempts = 24;
+  let bestPlan = clonePlanForBudget(plan);
+  rebuildAndPricePlan(bestPlan, { pantry: prefs.pantry, store: prefs.store });
+  const startingTotal = Number(bestPlan.totalPrice || 0);
+  const startedOverBudget = startingTotal > hardTarget;
+
+  if (startingTotal <= softTarget) {
+    bestPlan.budgetOptimization = {
+      attempted: false,
+      success: true,
+      beforeTotal: startingTotal,
+      afterTotal: startingTotal,
+      target: hardTarget,
+      softTarget,
+      attempts: 0,
+      message: null,
+    };
+    return bestPlan;
+  }
+
+  console.log("[Budget optimization] starting", {
+    selectedBudget: hardTarget,
+    softTarget,
+    startingTotal,
+    selectedStore: prefs.store,
+  });
+
+  let attempts = 0;
+  while (attempts < maxAttempts && Number(bestPlan.totalPrice || 0) > softTarget) {
+    const trial = bestBudgetReplacementTrial(bestPlan, prefs, hardTarget);
+    if (!trial) break;
+    attempts += 1;
+    console.log("[Budget optimization] accepted replacement", {
+      attempt: attempts,
+      dayIndex: trial.dayIndex,
+      slot: trial.slot,
+      recipeId: trial.recipeId,
+      totalPrice: trial.totalPrice,
+    });
+    bestPlan = trial.plan;
+    if (Number(bestPlan.totalPrice || 0) <= hardTarget && Number(bestPlan.totalPrice || 0) <= softTarget) break;
+  }
+
+  const afterTotal = Number(bestPlan.totalPrice || 0);
+  const success = afterTotal <= hardTarget;
+  const adjusted = attempts > 0 && afterTotal < startingTotal;
+  bestPlan.budgetOptimization = {
+    attempted: startedOverBudget || adjusted,
+    success,
+    beforeTotal: startingTotal,
+    afterTotal,
+    target: hardTarget,
+    softTarget,
+    attempts,
+    message: !startedOverBudget && !adjusted
+      ? null
+      : success
+        ? "Planið er innan budgets."
+        : `Við náðum planinu næst budgetinu. (${formatKr(afterTotal)} af ${formatKr(hardTarget)} budgeti).`,
+  };
+
+  console.log("[Budget optimization] finished", bestPlan.budgetOptimization);
+  return bestPlan;
 }
 
 function markPlanPricesEstimated(plan, message = "Náði ekki að sækja verð, sýni áætlað verð.") {
@@ -2601,6 +3002,76 @@ function showStartupError(error) {
     "beforeend",
     "<main class='wrap'><h1>Villa kom upp</h1><p>Ekki tókst að hlaða Matval. Prófaðu að endurhlaða síðuna.</p></main>"
   );
+}
+
+let priceInfoCleanup = null;
+
+function closePriceInfoPopover() {
+  if (priceInfoCleanup) {
+    priceInfoCleanup();
+    priceInfoCleanup = null;
+  }
+  document.getElementById("priceInfoPopoverRoot")?.remove();
+}
+
+function showPriceInfoPopover(item, triggerElement) {
+  if (!IS_BROWSER || !triggerElement) return;
+  closePriceInfoPopover();
+
+  const label = item?.label || "Upplýsingar um verð";
+  const detail = item?.detail || "Verð getur breyst.";
+  const isMobile = window.matchMedia("(max-width: 700px)").matches;
+  const root = document.createElement("div");
+  root.id = "priceInfoPopoverRoot";
+  root.className = `price-info-layer ${isMobile ? "is-mobile" : ""}`;
+  root.innerHTML = `
+    <section class="price-info-popover" role="dialog" aria-modal="${isMobile ? "true" : "false"}" aria-label="Upplýsingar um verð">
+      <button class="price-info-close" type="button" aria-label="Loka">×</button>
+      <div class="price-info-heading">
+        ${iconImg("info", "", "ui-icon price-info-heading-icon")}
+        <strong>${escapeHtml(label)}</strong>
+      </div>
+      <p>${escapeHtml(detail)}</p>
+    </section>
+  `;
+  document.body.appendChild(root);
+
+  const popover = root.querySelector(".price-info-popover");
+  if (!isMobile && popover) {
+    const rect = triggerElement.getBoundingClientRect();
+    const margin = 12;
+    const width = Math.min(320, window.innerWidth - margin * 2);
+    popover.style.width = `${width}px`;
+    const desiredLeft = rect.left + rect.width / 2 - width / 2;
+    const left = Math.max(margin, Math.min(desiredLeft, window.innerWidth - width - margin));
+    const belowTop = rect.bottom + 10;
+    const estimatedHeight = 150;
+    const top = belowTop + estimatedHeight > window.innerHeight
+      ? Math.max(margin, rect.top - estimatedHeight - 10)
+      : belowTop;
+    popover.style.left = `${left}px`;
+    popover.style.top = `${top}px`;
+  }
+
+  root.querySelector(".price-info-close")?.addEventListener("click", closePriceInfoPopover);
+
+  const onPointerDown = (event) => {
+    if (popover?.contains(event.target) || triggerElement.contains(event.target)) return;
+    closePriceInfoPopover();
+  };
+  const onKeyDown = (event) => {
+    if (event.key === "Escape") closePriceInfoPopover();
+  };
+
+  window.setTimeout(() => {
+    document.addEventListener("pointerdown", onPointerDown);
+    document.addEventListener("keydown", onKeyDown);
+  }, 0);
+
+  priceInfoCleanup = () => {
+    document.removeEventListener("pointerdown", onPointerDown);
+    document.removeEventListener("keydown", onKeyDown);
+  };
 }
 
 function render() {
@@ -3398,6 +3869,7 @@ function renderMyPlans() {
 }
 
 function renderResults() {
+  closePriceInfoPopover();
   clearInteractionState();
   setQuizActive(false);
   const plan = state.plan;
@@ -3440,6 +3912,7 @@ function renderResults() {
       ? "Náði ekki að sækja verð, sýni áætlað verð."
       : null;
   const replacementMessage = state.replacementMessage;
+  const budgetOptimizationMessage = plan.budgetOptimization?.attempted ? plan.budgetOptimization.message : null;
   const currentPlanHash = createPlanHash(plan);
   const currentPlanSaved = isPlanHashSaved(currentPlanHash, activeSavedPlans());
   const savedPlanNotice = state.savedPlanNotice;
@@ -3453,39 +3926,62 @@ function renderResults() {
     }
     return item.ingredientName || item.name || "Vara";
   };
-  const shoppingLineMeta = (item) => {
-    if (item.priceSource === "store" && item.isEstimated === false) {
+  const shoppingAmountLabel = (item) => {
+    if (item.purchaseLabel) return `Magn: ${item.purchaseLabel}`;
+    if ((item.priceSource === "store" || item.priceSource === "reference") && item.isEstimated === false) {
       const packageCount = item.packageCount || 1;
-      return `Magn: ×${packageCount}`;
+      const packageSize = item.packageSize || item.size || "vara";
+      return `Magn: ${packageCount > 1 ? `${packageCount} × ` : ""}${packageSize}`;
     }
     if (item.amount && item.unit) return `Magn: ${Number(item.amount).toFixed(item.amount < 1 ? 2 : 0)} ${item.unit}`;
     return "Magn: áætlað";
   };
   const shoppingLinePrice = (item) => {
-    if (item.priceSource === "store" && item.isEstimated === false) {
-      return item.totalPrice;
-    }
+    if (item.excludeFromTotal || item.sourceLabel === "Athuga heima") return null;
+    if ((item.priceSource === "store" || item.priceSource === "reference") && item.isEstimated === false) return item.totalPrice;
     return item.estimatedPrice ?? item.totalPrice ?? item.price;
   };
-  const shoppingSourceMeta = (item) => {
-    if (item.isStale || item.stale) return "Verð gæti hafa breyst";
-    if (item.priceSource === "reference") {
-      return "Áætlað verð · verðviðmið";
-    }
-    if (item.priceSource === "store") {
-      return `Verð frá ${item.storeName || item.sourceName || "verslun"}`;
-    }
-    return "Áætlað verð";
+  const getShortPriceLabel = (item) => {
+    if (item.priceSource === "store") return "Frá Krónunni";
+    if (item.priceMatchType === "kronan_reference") return "Verðviðmið";
+    if (item.priceSource === "reference") return "Verðviðmið";
+    if (item.priceSource === "pantry" || item.excludeFromTotal || item.sourceLabel === "Athuga heima") return "Athuga heima";
+    return "Áætlað";
   };
-  const shoppingSourceMetaHtml = (item) => {
-    const label = shoppingSourceMeta(item);
-    const needsInfoIcon = label.startsWith("Áætlað");
-    return `${needsInfoIcon ? iconImg("info", "", "ui-icon shopping-source-icon") : ""}<span>${escapeHtml(label)}</span>`;
+  const formatSourceDate = (value) => {
+    if (!value) return "";
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return "";
+    return date.toLocaleDateString("is-IS", { day: "numeric", month: "long", year: "numeric" });
+  };
+  const getPriceLabelDetail = (item) => {
+    if (item.priceSource === "store") {
+      return `Verð frá ${item.storeName || "verslun"}. Síðast uppfært: ${formatSourceDate(item.observedAt || item.fetchedAt) || "óþekkt"}.`;
+    }
+    if (item.priceMatchType === "kronan_reference") {
+      return "Byggt á sambærilegu verðviðmiði. Verð getur breyst.";
+    }
+    if (item.priceSource === "reference") {
+      if (item.priceMatchType === "selected_store_reference") {
+        return `Byggt á verðviðmiði fyrir ${item.storeName || selectedStoreName}. Verð getur breyst.`;
+      }
+      return "Byggt á sambærilegu verðviðmiði. Verð getur breyst.";
+    }
+    if (item.priceSource === "pantry" || item.excludeFromTotal || item.sourceLabel === "Athuga heima") {
+      return "Þetta er vara sem margir eiga til heima. Athugaðu áður en þú kaupir.";
+    }
+    return "Áætlað af Matval út frá algengu kaupverði. Verð getur breyst.";
+  };
+  const shoppingLineMetaHtml = (item) => {
+    const label = getShortPriceLabel(item);
+    const detail = getPriceLabelDetail(item);
+    return `${escapeHtml(shoppingAmountLabel(item))} · <span class="shopping-item-source" role="button" tabindex="0" data-source-detail="${escapeHtml(detail)}" title="${escapeHtml(detail)}">${iconImg("info", "", "ui-icon shopping-source-icon")}<span>${escapeHtml(label)}</span></span>`;
   };
   const shoppingDebugMeta = (item) => [
     `selectedStore=${selectedStoreName}`,
     `matchedProductName=${item.productNameMatched || item.matchedProductName || "null"}`,
     `sourceName=${item.sourceName || "null"}`,
+    `sourceType=${item.sourceType || "unknown"}`,
     `priceSource=${item.priceSource || "unknown"}`,
     `confidence=${item.confidence || "unknown"}`,
     `observedAt=${item.observedAt || "null"}`,
@@ -3498,11 +3994,12 @@ function renderResults() {
     if (["chicken_breast", "eggs", "tuna", "ground_beef", "salmon", "tofu", "lentils", "chickpeas", "black_beans", "kidney_beans", "cottage_cheese", "yogurt_skyr"].includes(key)) return "Prótein";
     if (["mixed_veg", "banana", "onion", "garlic", "potatoes", "spinach", "carrots", "cucumber", "tomato", "apples", "blueberries"].includes(key)) return "Grænmeti og ávextir";
     if (["milk", "oatmilk", "butter", "cheese", "coconut_milk"].includes(key)) return "Mjólkurvörur / valkostir";
+    if (item.excludeFromTotal || item.sourceLabel === "Athuga heima") return "Athuga heima";
     if (["rice", "oats", "pasta", "tomato_sauce", "bread", "tortilla", "soy_sauce", "peanut_butter", "oil", "noodles", "spices"].includes(key)) return "Búrvara";
     if (productName.includes("fros")) return "Frosið";
     return "Annað";
   };
-  const categoryOrder = ["Prótein", "Grænmeti og ávextir", "Mjólkurvörur / valkostir", "Búrvara", "Frosið", "Annað"];
+  const categoryOrder = ["Prótein", "Grænmeti og ávextir", "Mjólkurvörur / valkostir", "Búrvara", "Frosið", "Athuga heima", "Annað"];
   const groupedShoppingList = categoryOrder
     .map((category) => ({
       category,
@@ -3536,17 +4033,17 @@ function renderResults() {
     <div class="shopping-group">
       <div class="shopping-group-title">${group.category}</div>
       ${group.items.map((item) => {
+        const linePrice = shoppingLinePrice(item);
         return `
           ${(() => { console.log("[TRACE]", traceId, "rendering item", item); return ""; })()}
           <label class="shopping-item">
             <input class="shopping-check" type="checkbox" aria-label="${escapeHtml(shoppingDisplayName(item))}" />
             <span class="shopping-item-main">
               <span class="shopping-item-name">${escapeHtml(shoppingDisplayName(item))}</span>
-              <span class="shopping-item-meta">${escapeHtml(shoppingLineMeta(item))}</span>
-              <span class="shopping-item-source">${shoppingSourceMetaHtml(item)}</span>
+              <span class="shopping-item-meta">${shoppingLineMetaHtml(item)}</span>
               ${SHOW_PRICE_DEBUG ? `<span class="shopping-item-debug">${escapeHtml(shoppingDebugMeta(item))}</span>` : ""}
             </span>
-            <span class="shopping-item-price mono">${formatKr(shoppingLinePrice(item))}</span>
+            <span class="shopping-item-price mono">${linePrice == null ? "—" : formatKr(linePrice)}</span>
           </label>
         `;
       }).join("")}
@@ -3557,17 +4054,27 @@ function renderResults() {
       ${mobile ? `
         <div class="mobile-grocery-summary">
           <div>
-            <h3>Innkaupalisti — ${escapeHtml(selectedStoreName)}</h3>
-            <div class="shopping-source-note">${shoppingSourceNote}</div>
+            <h3>Innkaupalisti</h3>
+            <div class="shopping-source-note">${escapeHtml(selectedStoreName)} · ${escapeHtml(shoppingSourceNote)}</div>
           </div>
           <div class="mobile-grocery-total mono" data-plan-total>${formatKr(plan.totalPrice)}</div>
           <div class="mobile-grocery-count" data-shopping-count>${plan.shoppingList.length} ${plan.shoppingList.length === 1 ? "vara" : "vörur"}</div>
-          <button class="meal-action-btn refresh-prices-btn" type="button">Uppfæra verð</button>
+          <div class="shopping-list-actions">
+            <button class="meal-action-btn share-shopping-list-btn" type="button">${iconImg("share", "", "ui-icon action-btn-icon")}<span>Deila lista</span></button>
+            <button class="meal-action-btn copy-shopping-list-btn" type="button">${iconImg("copy", "", "ui-icon action-btn-icon")}<span>Afrita lista</span></button>
+          </div>
         </div>
       ` : `
-        <h3>Innkaupalisti — ${escapeHtml(selectedStoreName)}</h3>
-        <div class="shopping-source-note">${shoppingSourceNote}</div>
-        <button class="meal-action-btn refresh-prices-btn" type="button" style="margin:8px 0 12px;">Uppfæra verð</button>
+        <div class="shopping-list-header">
+          <div>
+            <h3>Innkaupalisti</h3>
+            <div class="shopping-source-note">${escapeHtml(selectedStoreName)} · ${escapeHtml(shoppingSourceNote)}</div>
+          </div>
+          <div class="shopping-list-actions">
+            <button class="meal-action-btn share-shopping-list-btn" type="button">${iconImg("share", "", "ui-icon action-btn-icon")}<span>Deila lista</span></button>
+            <button class="meal-action-btn copy-shopping-list-btn" type="button">${iconImg("copy", "", "ui-icon action-btn-icon")}<span>Afrita lista</span></button>
+          </div>
+        </div>
       `}
       ${pricingMessage ? `<div class="budget-note" style="margin-bottom:10px;">${pricingMessage}</div>` : ""}
       ${groceryGroupsHtml}
@@ -3575,10 +4082,11 @@ function renderResults() {
       ${estimatedCount ? `<div class="budget-note" style="margin-top:10px;">${estimatedCount} vara/vörur eru með áætluðu verði.</div>` : ""}
       <div class="total-row"><span>Heildarverð</span><span data-plan-total>${formatKr(plan.totalPrice)}</span></div>
       <div class="budget-bar"><div class="budget-bar-fill ${overBudget ? "over" : ""}" style="width:${pct}%"></div></div>
+      ${budgetOptimizationMessage ? `<div class="budget-note" style="margin-top:8px;">${escapeHtml(budgetOptimizationMessage)}</div>` : ""}
       <div class="budget-note">
         ${overBudget
           ? `Planið er ${formatKr(plan.totalPrice - state.budget)} yfir budget (${formatKr(state.budget)}).`
-          : `Planið er innan budget — ${formatKr(state.budget - plan.totalPrice)} til skiptanna.`}
+          : "Planið er innan budgets."}
       </div>
       <div class="budget-note" style="margin-top:8px;">≈ ${formatKr(perDay)} á dag · ≈ ${formatKr(perMeal)} á máltíð</div>
       <div class="budget-note" style="margin-top:8px;">Verð geta breyst.</div>
@@ -3711,6 +4219,20 @@ function renderResults() {
       }
     };
   });
+  document.querySelectorAll(".copy-shopping-list-btn").forEach((el) => {
+    el.onclick = async () => {
+      if (!state.plan || state.plan.error) return;
+      clearInteractionState();
+      await copyShoppingList(state.plan);
+    };
+  });
+  document.querySelectorAll(".share-shopping-list-btn").forEach((el) => {
+    el.onclick = async () => {
+      if (!state.plan || state.plan.error) return;
+      clearInteractionState();
+      await shareShoppingList(state.plan);
+    };
+  });
   document.querySelectorAll("[data-result-tab]").forEach((el) => {
     el.onclick = () => {
       state.resultTab = el.dataset.resultTab === "grocery" ? "grocery" : "plan";
@@ -3721,6 +4243,19 @@ function renderResults() {
     el.onclick = () => {
       state.activeResultDay = Number(el.dataset.dayIndex);
       renderResults();
+    };
+  });
+  document.querySelectorAll("[data-source-detail]").forEach((el) => {
+    const showSourceDetail = (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      const detail = el.dataset.sourceDetail;
+      const label = el.textContent?.trim() || "Upplýsingar um verð";
+      if (detail) showPriceInfoPopover({ label, detail }, el);
+    };
+    el.onclick = showSourceDetail;
+    el.onkeydown = (event) => {
+      if (event.key === "Enter" || event.key === " ") showSourceDetail(event);
     };
   });
   bindMealRowInteractions(document);
